@@ -71,6 +71,7 @@ public class StandaloneConfiguration {
   @VisibleForTesting
   static final Boolean DEFAULT_DEBUG_TOGGLE = false;
 
+
   /*
    * config parameters which do not serialize or deserialize to/from json
    */
@@ -201,6 +202,18 @@ public class StandaloneConfiguration {
   public Integer timeout = DEFAULT_TIMEOUT;
 
   /**
+   * Whether or not to use experimental passthrough mode on a hub or a standalone
+   */
+  @Expose
+  @Parameter(
+      names = "-enablePassThrough",
+      description = "<Boolean>: Whether or not to use the experimental passthrough mode. Defaults to false."
+  )
+  // initially defaults to false from boolean primitive type
+  public boolean enablePassThrough;
+
+
+  /**
    * Creates a new configuration using the default values.
    */
   public StandaloneConfiguration() {
@@ -247,7 +260,8 @@ public class StandaloneConfiguration {
     if (isMergeAble(other.timeout, timeout)) {
       timeout = other.timeout;
     }
-    // role, port, log, debug, version, and help are not merged, they are only consumed by the immediately running node and can't affect a remote
+    // role, port, log, debug, version, enablePassThrough, and help are not merged, they are only consumed by the
+    // immediately running process and should never affect a remote
   }
 
   /**
@@ -298,6 +312,7 @@ public class StandaloneConfiguration {
     sb.append(toString(format, "port", port));
     sb.append(toString(format, "role", role));
     sb.append(toString(format, "timeout", timeout));
+    sb.append(toString(format, "enablePassThrough", enablePassThrough));
     return sb.toString();
   }
 

@@ -148,6 +148,7 @@ public class DefaultSession implements Session {
     if (tempFs != null) {
       tempFs.deleteTemporaryFiles();
       tempFs.deleteBaseDir();
+      tempFs = null;
     }
   }
 
@@ -273,12 +274,4 @@ public class DefaultSession implements Session {
     return inUseWithThread != null;
   }
 
-  public void interrupt() {
-    Thread threadToStop = inUseWithThread;
-    if (threadToStop != null) {
-      synchronized (threadToStop) {
-        threadToStop.interrupt();
-      }
-    }
-  }
 }

@@ -58,7 +58,7 @@ public abstract class AbstractHttpResponseCodec implements ResponseCodec<HttpRes
                  ? HTTP_OK
                  : HTTP_INTERNAL_ERROR;
 
-    byte[] data = beanToJsonConverter.convert(response).getBytes(UTF_8);
+    byte[] data = beanToJsonConverter.convert(getValueToEncode(response)).getBytes(UTF_8);
 
     HttpResponse httpResponse = new HttpResponse();
     httpResponse.setStatus(status);
@@ -71,12 +71,14 @@ public abstract class AbstractHttpResponseCodec implements ResponseCodec<HttpRes
     return httpResponse;
   }
 
+  protected abstract Object getValueToEncode(Response response);
+
   @Override
   public Response decode(HttpResponse encodedResponse) {
     String contentType = nullToEmpty(encodedResponse.getHeader(CONTENT_TYPE));
     String content = encodedResponse.getContentString().trim();
     try {
-      return jsonToBeanConverter.convert(Response.class, content);
+      return reconstructValue(jsonToBeanConverter.convert(Response.class, content));
     } catch (JsonException e) {
       if (contentType.startsWith("application/json")) {
         throw new IllegalArgumentException(
@@ -136,4 +138,6 @@ public abstract class AbstractHttpResponseCodec implements ResponseCodec<HttpRes
     }
     return response;
   }
+
+  protected abstract Response reconstructValue(Response response);
 }

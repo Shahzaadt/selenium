@@ -142,11 +142,15 @@ import org.openqa.selenium.remote.server.log.PerSessionLogHandler;
 import org.openqa.selenium.remote.server.rest.RestishHandler;
 import org.openqa.selenium.remote.server.rest.ResultConfig;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 public class JsonHttpCommandHandler {
 
@@ -170,12 +174,19 @@ public class JsonHttpCommandHandler {
   }
 
   public void addNewMapping(
-      String commandName, Class<? extends RestishHandler<?>> implementationClass) {
+      String commandName,
+      Class<? extends RestishHandler<?>> implementationClass) {
     ResultConfig config = new ResultConfig(commandName, implementationClass, sessions, log);
     configs.put(commandName, config);
   }
 
-  public HttpResponse handleRequest(HttpRequest request) {
+  public void handleRequest(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    handleRequest(
+        new ServletRequestWrappingHttpRequest(req),
+        new ServletResponseWrappingHttpResponse(resp));
+  }
+
+  public void handleRequest(HttpRequest request, HttpResponse resp) throws IOException {
     LoggingManager.perSessionLogHandler().clearThreadTempLogs();
     log.fine(String.format("Handling: %s %s", request.getMethod(), request.getUri()));
 
@@ -206,7 +217,7 @@ public class JsonHttpCommandHandler {
       handler.attachToCurrentThread(new SessionId(response.getSessionId()));
     }
     try {
-      return responseCodec.encode(response);
+      responseCodec.encode(response);
     } finally {
       handler.detachFromCurrentThread();
     }

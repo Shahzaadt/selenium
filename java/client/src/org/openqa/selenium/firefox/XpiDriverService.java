@@ -19,6 +19,7 @@ package org.openqa.selenium.firefox;
 
 
 import static org.openqa.selenium.firefox.FirefoxProfile.PORT_PREFERENCE;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -28,11 +29,13 @@ import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.firefox.internal.ClasspathExtension;
 import org.openqa.selenium.firefox.internal.Extension;
 import org.openqa.selenium.firefox.internal.FileExtension;
+import org.openqa.selenium.net.UrlChecker;
 import org.openqa.selenium.remote.service.DriverService;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Optional;
 import java.util.concurrent.locks.Lock;
@@ -75,7 +78,7 @@ public class XpiDriverService extends DriverService {
   }
 
   @Override
-  protected URL getUrl(int port) throws IOException {
+  protected URL getUrl(int port) throws MalformedURLException {
     return new URL("http", "localhost", port, "/hub");
   }
 
@@ -94,6 +97,19 @@ public class XpiDriverService extends DriverService {
       waitUntilAvailable();
     } finally {
       lock.unlock();
+    }
+  }
+
+  @Override
+  protected void waitUntilAvailable() throws MalformedURLException {
+    try {
+      // Use a longer timeout, because 45 seconds was the default timeout in the predecessor to
+      // XpiDriverService. This has to wait for Firefox to start, not just a service, and some users
+      // may be running tests on really slow machines.
+      URL status = new URL(getUrl(port).toString() + "/status");
+      new UrlChecker().waitUntilAvailable(45, SECONDS, status);
+    } catch (UrlChecker.TimeoutException e) {
+      throw new WebDriverException("Timed out waiting 45 seconds for Firefox to start.", e);
     }
   }
 
@@ -171,7 +187,10 @@ public class XpiDriverService extends DriverService {
 
     @Override
     protected File findDefaultExecutable() {
-      return new FirefoxBinary().getFile();
+      if (binary == null) {
+        return new FirefoxBinary().getFile();
+      }
+      return binary.getFile();
     }
 
     @Override

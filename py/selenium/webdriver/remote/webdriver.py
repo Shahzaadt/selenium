@@ -217,13 +217,17 @@ class WebDriver(object):
         return self._web_element_cls(self, element_id, w3c=self.w3c)
 
     def _unwrap_value(self, value):
-        if isinstance(value, dict) and ('ELEMENT' in value or 'element-6066-11e4-a52e-4f735466cecf' in value):
-            wrapped_id = value.get('ELEMENT', None)
-            if wrapped_id:
-                return self.create_web_element(value['ELEMENT'])
+        if isinstance(value, dict):
+            if 'ELEMENT' in value or 'element-6066-11e4-a52e-4f735466cecf' in value:
+                wrapped_id = value.get('ELEMENT', None)
+                if wrapped_id:
+                    return self.create_web_element(value['ELEMENT'])
+                else:
+                    return self.create_web_element(value['element-6066-11e4-a52e-4f735466cecf'])
             else:
-                return self.create_web_element(value['element-6066-11e4-a52e-4f735466cecf'])
-
+                for key, val in value.items():
+                    value[key] = self._unwrap_value(val)
+                return value
         elif isinstance(value, list):
             return list(self._unwrap_value(item) for item in value)
         else:
@@ -821,15 +825,20 @@ class WebDriver(object):
 
     def get_screenshot_as_file(self, filename):
         """
-        Gets the screenshot of the current window. Returns False if there is
-           any IOError, else returns True. Use full paths in your filename.
+        Saves a screenshot of the current window to a PNG image file. Returns
+           False if there is any IOError, else returns True. Use full paths in
+           your filename.
 
         :Args:
-         - filename: The full path you wish to save your screenshot to.
+         - filename: The full path you wish to save your screenshot to. This
+           should end with a `.png` extension.
 
         :Usage:
             driver.get_screenshot_as_file('/Screenshots/foo.png')
         """
+        if not filename.lower().endswith('.png'):
+            warnings.warn("name used for saved screenshot does not match file "
+                "type. It should end with a `.png` extension", UserWarning)
         png = self.get_screenshot_as_png()
         try:
             with open(filename, 'wb') as f:
@@ -842,11 +851,13 @@ class WebDriver(object):
 
     def save_screenshot(self, filename):
         """
-        Gets the screenshot of the current window. Returns False if there is
-           any IOError, else returns True. Use full paths in your filename.
+        Saves a screenshot of the current window to a PNG image file. Returns
+           False if there is any IOError, else returns True. Use full paths in
+           your filename.
 
         :Args:
-         - filename: The full path you wish to save your screenshot to.
+         - filename: The full path you wish to save your screenshot to. This
+           should end with a `.png` extension.
 
         :Usage:
             driver.save_screenshot('/Screenshots/foo.png')

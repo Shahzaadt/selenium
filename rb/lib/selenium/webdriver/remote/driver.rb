@@ -29,11 +29,12 @@ module Selenium
       module Driver
 
         def self.new(**opts)
+          listener = opts.delete(:listener)
           bridge = Bridge.handshake(opts)
           if bridge.dialect == :w3c
-            W3C::Driver.new(bridge, listener: opts[:listener])
+            W3C::Driver.new(bridge, listener: listener)
           else
-            OSS::Driver.new(bridge, listener: opts[:listener])
+            OSS::Driver.new(bridge, listener: listener)
           end
         end
 
