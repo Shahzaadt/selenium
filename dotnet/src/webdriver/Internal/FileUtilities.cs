@@ -1,4 +1,4 @@
-﻿// <copyright file="FileUtilities.cs" company="WebDriver Committers">
+// <copyright file="FileUtilities.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -16,6 +16,7 @@
 // limitations under the License.
 // </copyright>
 
+using OpenQA.Selenium.Internal.Logging;
 using System;
 using System.Globalization;
 using System.IO;
@@ -28,6 +29,8 @@ namespace OpenQA.Selenium.Internal
     /// </summary>
     internal static class FileUtilities
     {
+        private static readonly ILogger logger = Log.GetLogger(typeof(FileUtilities));
+
         /// <summary>
         /// Recursively copies a directory.
         /// </summary>
@@ -99,7 +102,10 @@ namespace OpenQA.Selenium.Internal
 
             if (Directory.Exists(directoryToDelete))
             {
-                Console.WriteLine("Unable to delete directory '{0}'", directoryToDelete);
+                if (logger.IsEnabled(LogEventLevel.Trace))
+                {
+                    logger.Trace($"Unable to delete directory '{directoryToDelete}'");
+                }
             }
         }
 
@@ -158,7 +164,26 @@ namespace OpenQA.Selenium.Internal
         public static string GetCurrentDirectory()
         {
             Assembly executingAssembly = typeof(FileUtilities).Assembly;
-            string currentDirectory = Path.GetDirectoryName(executingAssembly.Location);
+            string location = null;
+
+            // Make sure not to call Path.GetDirectoryName if assembly location is null or empty
+            if (!string.IsNullOrEmpty(executingAssembly.Location))
+            {
+                location = Path.GetDirectoryName(executingAssembly.Location);
+            }
+
+            if (string.IsNullOrEmpty(location))
+            {
+                // If there is no location information from the executing
+                // assembly, we will bail by using the current directory.
+                // Note this is inaccurate, because the working directory
+                // may not actually be the directory of the current assembly,
+                // especially if the WebDriver assembly was embedded as a
+                // resource.
+                location = Directory.GetCurrentDirectory();
+            }
+
+            string currentDirectory = location;
 
             // If we're shadow copying, get the directory from the codebase instead
             if (AppDomain.CurrentDomain.ShadowCopyFiles)

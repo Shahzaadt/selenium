@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,33 +20,24 @@
 module Selenium
   module WebDriver
     module Interactions
-      class Interaction
-        PAUSE = :pause
+      #
+      # Superclass for classes defining actions
+      # Do not initialize directly, only use subclass
+      #
+      # @api private
+      #
 
-        attr_reader :source
+      class Interaction
+        attr_reader :type
 
         def initialize(source)
-          raise TypeError, "#{source.type} is not a valid input type" unless Interactions::SOURCE_TYPES.include? source.type
-          @source = source
+          assert_source(source)
+        end
+
+        def assert_source(_source)
+          raise NotImplementedError, 'subclass responsibility'
         end
       end
-
-      class Pause < Interaction
-        def initialize(source, duration = nil)
-          super(source)
-          @duration = duration
-        end
-
-        def type
-          PAUSE
-        end
-
-        def encode
-          output = {type: type}
-          output[:duration] = (@duration * 1000).to_i if @duration
-          output
-        end
-      end # Interaction
     end # Interactions
   end # WebDriver
 end # Selenium

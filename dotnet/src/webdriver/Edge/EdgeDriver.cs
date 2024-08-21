@@ -1,4 +1,4 @@
-﻿// <copyright file="EdgeDriver.cs" company="Microsoft">
+// <copyright file="EdgeDriver.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -16,16 +16,30 @@
 // limitations under the License.
 // </copyright>
 
-using System;
+using OpenQA.Selenium.Chromium;
 using OpenQA.Selenium.Remote;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace OpenQA.Selenium.Edge
 {
     /// <summary>
     /// Provides a mechanism to write tests against Edge
     /// </summary>
-    public class EdgeDriver : RemoteWebDriver
+    public class EdgeDriver : ChromiumDriver
     {
+        private static Dictionary<string, CommandInfo> edgeCustomCommands = new Dictionary<string, CommandInfo>()
+        {
+            { ExecuteCdp, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/ms/cdp/execute") },
+            { GetCastSinksCommand, new HttpCommandInfo(HttpCommandInfo.GetCommand, "/session/{sessionId}/ms/cast/get_sinks") },
+            { SelectCastSinkCommand, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/ms/cast/set_sink_to_use") },
+            { StartCastTabMirroringCommand, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/ms/cast/start_tab_mirroring") },
+            { StartCastDesktopMirroringCommand, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/ms/cast/start_desktop_mirroring") },
+            { GetCastIssueMessageCommand, new HttpCommandInfo(HttpCommandInfo.GetCommand, "/session/{sessionId}/ms/cast/get_issue_message") },
+            { StopCastingCommand, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/ms/cast/stop_casting") }
+        };
+
         /// <summary>
         /// Initializes a new instance of the <see cref="EdgeDriver"/> class.
         /// </summary>
@@ -39,7 +53,7 @@ namespace OpenQA.Selenium.Edge
         /// </summary>
         /// <param name="options">The <see cref="EdgeOptions"/> to be used with the Edge driver.</param>
         public EdgeDriver(EdgeOptions options)
-            : this(EdgeDriverService.CreateDefaultService(), options, RemoteWebDriver.DefaultCommandTimeout)
+            : this(EdgeDriverService.CreateDefaultService(), options)
         {
         }
 
@@ -54,9 +68,9 @@ namespace OpenQA.Selenium.Edge
 
         /// <summary>
         /// Initializes a new instance of the <see cref="EdgeDriver"/> class using the specified path
-        /// to the directory containing EdgeDriver.exe.
+        /// to the directory containing the WebDriver executable.
         /// </summary>
-        /// <param name="edgeDriverDirectory">The full path to the directory containing EdgeDriver.exe.</param>
+        /// <param name="edgeDriverDirectory">The full path to the directory containing the WebDriver executable.</param>
         public EdgeDriver(string edgeDriverDirectory)
             : this(edgeDriverDirectory, new EdgeOptions())
         {
@@ -64,9 +78,9 @@ namespace OpenQA.Selenium.Edge
 
         /// <summary>
         /// Initializes a new instance of the <see cref="EdgeDriver"/> class using the specified path
-        /// to the directory containing EdgeDriver.exe and options.
+        /// to the directory containing the WebDriver executable and options.
         /// </summary>
-        /// <param name="edgeDriverDirectory">The full path to the directory containing EdgeDriver.exe.</param>
+        /// <param name="edgeDriverDirectory">The full path to the directory containing the WebDriver executable.</param>
         /// <param name="options">The <see cref="EdgeOptions"/> to be used with the Edge driver.</param>
         public EdgeDriver(string edgeDriverDirectory, EdgeOptions options)
             : this(edgeDriverDirectory, options, RemoteWebDriver.DefaultCommandTimeout)
@@ -75,9 +89,9 @@ namespace OpenQA.Selenium.Edge
 
         /// <summary>
         /// Initializes a new instance of the <see cref="EdgeDriver"/> class using the specified path
-        /// to the directory containing EdgeDriver.exe, options, and command timeout.
+        /// to the directory containing the WebDriver executable, options, and command timeout.
         /// </summary>
-        /// <param name="edgeDriverDirectory">The full path to the directory containing EdgeDriver.exe.</param>
+        /// <param name="edgeDriverDirectory">The full path to the directory containing the WebDriver executable.</param>
         /// <param name="options">The <see cref="EdgeOptions"/> to be used with the Edge driver.</param>
         /// <param name="commandTimeout">The maximum amount of time to wait for each command.</param>
         public EdgeDriver(string edgeDriverDirectory, EdgeOptions options, TimeSpan commandTimeout)
@@ -103,18 +117,41 @@ namespace OpenQA.Selenium.Edge
         /// <param name="options">The <see cref="EdgeOptions"/> to be used with the Edge driver.</param>
         /// <param name="commandTimeout">The maximum amount of time to wait for each command.</param>
         public EdgeDriver(EdgeDriverService service, EdgeOptions options, TimeSpan commandTimeout)
-            : base(new DriverServiceCommandExecutor(service, commandTimeout), ConvertOptionsToCapabilities(options))
+            : base(service, options, commandTimeout)
         {
+            this.AddCustomEdgeCommands();
         }
 
-        private static ICapabilities ConvertOptionsToCapabilities(EdgeOptions options)
+        /// <summary>
+        /// Gets a read-only dictionary of the custom WebDriver commands defined for ChromeDriver.
+        /// The keys of the dictionary are the names assigned to the command; the values are the
+        /// <see cref="CommandInfo"/> objects describing the command behavior.
+        /// </summary>
+        public static IReadOnlyDictionary<string, CommandInfo> CustomCommandDefinitions
         {
-            if (options == null)
+            get
             {
-                throw new ArgumentNullException("options", "options must not be null");
-            }
+                Dictionary<string, CommandInfo> customCommands = new Dictionary<string, CommandInfo>();
+                foreach (KeyValuePair<string, CommandInfo> entry in ChromiumCustomCommands)
+                {
+                    customCommands[entry.Key] = entry.Value;
+                }
 
-            return options.ToCapabilities();
+                foreach (KeyValuePair<string, CommandInfo> entry in edgeCustomCommands)
+                {
+                    customCommands[entry.Key] = entry.Value;
+                }
+
+                return new ReadOnlyDictionary<string, CommandInfo>(customCommands);
+            }
+        }
+
+        private void AddCustomEdgeCommands()
+        {
+            foreach (KeyValuePair<string, CommandInfo> entry in CustomCommandDefinitions)
+            {
+                this.RegisterInternalDriverCommand(entry.Key, entry.Value);
+            }
         }
     }
 }

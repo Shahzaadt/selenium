@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -27,7 +27,7 @@ module Selenium
         def app_data_path
           case Platform.os
           when :windows
-            "#{ENV['APPDATA']}\\Mozilla\\Firefox"
+            "#{ENV.fetch('APPDATA')}\\Mozilla\\Firefox"
           when :macosx
             "#{Platform.home}/Library/Application Support/Firefox"
           when :unix, :linux

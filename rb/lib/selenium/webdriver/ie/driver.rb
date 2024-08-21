@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,7 +20,6 @@
 module Selenium
   module WebDriver
     module IE
-
       #
       # Driver implementation for Internet Explorer supporting
       # both OSS and W3C dialects of JSON wire protocol.
@@ -28,52 +27,18 @@ module Selenium
       #
 
       class Driver < WebDriver::Driver
-        include DriverExtensions::TakesScreenshot
+        EXTENSIONS = [DriverExtensions::HasWebStorage].freeze
 
-        def initialize(opts = {})
-          opts[:desired_capabilities] ||= Remote::Capabilities.internet_explorer
+        include LocalDriver
 
-          unless opts.key?(:url)
-            driver_path = opts.delete(:driver_path) || IE.driver_path
-            port = opts.delete(:port) || Service::DEFAULT_PORT
-
-            opts[:driver_opts] ||= {}
-            if opts.key? :service_args
-              WebDriver.logger.deprecate ':service_args', "driver_opts: {args: #{opts[:service_args]}}"
-              opts[:driver_opts][:args] = opts.delete(:service_args)
-            end
-
-            %i[log_level log_file implementation].each do |method|
-              next unless opts.key? method
-              WebDriver.logger.deprecate ":#{method}", "driver_opts: {#{method}: '#{opts[method]}'}"
-              opts[:driver_opts][method] = opts.delete(method)
-            end
-
-            @service = Service.new(driver_path, port, opts.delete(:driver_opts))
-            @service.start
-            opts[:url] = @service.uri
-          end
-
-          if opts.delete(:introduce_flakiness_by_ignoring_security_domains)
-            opts[:desired_capabilities][:ignore_protected_mode_settings] = true
-          end
-          opts[:desired_capabilities][:native_events] = opts.delete(:native_events) != false
-
-          listener = opts.delete(:listener)
-          @bridge = Remote::Bridge.handshake(opts)
-          super(@bridge, listener: listener)
+        def initialize(options: nil, service: nil, url: nil, **opts)
+          caps, url = initialize_local_driver(options, service, url)
+          super(caps: caps, url: url, **opts)
         end
 
         def browser
           :internet_explorer
         end
-
-        def quit
-          super
-        ensure
-          @service.stop if @service
-        end
-
       end # Driver
     end # IE
   end # WebDriver

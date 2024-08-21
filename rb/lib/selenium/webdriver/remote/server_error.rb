@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -23,9 +23,9 @@ module Selenium
       class ServerError < StandardError
         def initialize(response)
           if response.is_a? String
-            super(response)
+            super
           else
-            super("status code #{response.code}")
+            super("status code #{response.code}; payload #{response.payload}")
           end
         end
       end # ServerError

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,77 +17,74 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
     module IE
       describe Driver do
-        let(:resp)    { {'sessionId' => 'foo', 'value' => Remote::Capabilities.internet_explorer.as_json} }
-        let(:service) { instance_double(Service, start: nil, uri: 'http://example.com') }
-        let(:caps)    { Remote::Capabilities.internet_explorer }
-        let(:http)    { instance_double(Remote::Http::Default, call: resp).as_null_object }
+        let(:service) do
+          instance_double(Service, launch: service_manager, executable_path: nil, 'executable_path=': nil,
+                                   class: IE::Service)
+        end
+        let(:service_manager) { instance_double(ServiceManager, uri: 'http://example.com') }
+        let(:valid_response) do
+          {status: 200,
+           body: {value: {sessionId: 0, capabilities: {browserName: 'internet explorer'}}}.to_json,
+           headers: {content_type: 'application/json'}}
+        end
+        let(:finder) { instance_double(DriverFinder, browser_path?: false, driver_path: '/path/to/driver') }
+
+        def expect_request(body: nil, endpoint: nil)
+          body = (body || {capabilities: {alwaysMatch: {browserName: 'internet explorer',
+                                                        'se:ieOptions': {nativeEvents: true}}}}).to_json
+          endpoint ||= "#{service_manager.uri}/session"
+          stub_request(:post, endpoint).with(body: body).to_return(valid_response)
+        end
 
         before do
-          allow(Remote::Capabilities).to receive(:internet_explorer).and_return(caps)
-          allow(Service).to receive(:binary_path).and_return('/foo')
-          allow(Service).to receive(:new).and_return(service)
+          allow(Service).to receive_messages(new: service)
         end
 
-        it 'raises ArgumentError if passed invalid options' do
-          expect { Driver.new(foo: 'bar') }.to raise_error(ArgumentError)
+        it 'uses DriverFinder when provided Service without path' do
+          expect_request
+          allow(DriverFinder).to receive(:new).and_return(finder)
+          options = Options.new
+
+          described_class.new(service: service, options: options)
+          expect(finder).to have_received(:driver_path)
         end
 
-        it 'accepts the :introduce_flakiness_by_ignoring_security_domains option' do
-          Driver.new(
-            introduce_flakiness_by_ignoring_security_domains: true,
-            http_client: http
-          )
+        it 'does not use DriverFinder when provided Service with path' do
+          expect_request
+          allow(service).to receive(:executable_path).and_return('path')
+          allow(DriverFinder).to receive(:new).and_return(finder)
 
-          expect(caps[:ignore_protected_mode_settings]).to be true
+          described_class.new(service: service)
+          expect(finder).not_to have_received(:driver_path)
         end
 
-        it 'has native events enabled by default' do
-          Driver.new(http_client: http)
+        it 'does not require any parameters' do
+          allow(DriverFinder).to receive(:new).and_return(finder)
+          expect_request
 
-          expect(caps[:native_events]).to be true
+          expect { described_class.new }.not_to raise_exception
         end
 
-        it 'can disable native events' do
-          Driver.new(
-            native_events: false,
-            http_client: http
-          )
+        it 'accepts provided Options as sole parameter' do
+          allow(DriverFinder).to receive(:new).and_return(finder)
+          opts = {args: ['-f']}
+          expect_request(body: {capabilities: {alwaysMatch: {browserName: 'internet explorer',
+                                                             'se:ieOptions': {nativeEvents: true,
+                                                                              'ie.browserCommandLineSwitches': '-f'}}}})
 
-          expect(caps[:native_events]).to be false
+          expect { described_class.new(options: Options.new(**opts)) }.not_to raise_exception
         end
 
-        it 'takes desired capabilities' do
-          custom_caps = Remote::Capabilities.new
-          custom_caps['ignoreProtectedModeSettings'] = true
-
-          expect(http).to receive(:call) do |_, _, payload|
-            expect(payload[:desiredCapabilities]['ignoreProtectedModeSettings']).to be true
-            resp
-          end
-
-          Driver.new(http_client: http, desired_capabilities: custom_caps)
-        end
-
-        it 'can override desired capabilities through direct arguments' do
-          custom_caps = Remote::Capabilities.new
-          custom_caps['ignoreProtectedModeSettings'] = false
-
-          expect(http).to receive(:call) do |_, _, payload|
-            expect(payload[:desiredCapabilities][:ignore_protected_mode_settings]).to be true
-            resp
-          end
-
-          Driver.new(
-            http_client: http,
-            desired_capabilities: custom_caps,
-            introduce_flakiness_by_ignoring_security_domains: true
-          )
+        it 'does not accept Options of the wrong class' do
+          expect {
+            described_class.new(options: Options.chrome)
+          }.to raise_exception(ArgumentError, ':options must be an instance of Selenium::WebDriver::IE::Options')
         end
       end
     end # IE

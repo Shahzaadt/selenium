@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,34 +21,31 @@ require_relative 'spec_helper'
 
 module Selenium
   module WebDriver
-    # https://github.com/SeleniumHQ/selenium/issues/3338
-    not_compliant_on driver: :remote, platform: :macosx do
-      describe Error do
-        it 'should raise an appropriate error' do
-          driver.navigate.to url_for('xhtmlTest.html')
+    describe Error, exclusive: {bidi: false, reason: 'Not yet implemented with BiDi'} do
+      it 'raises an appropriate error' do
+        driver.navigate.to url_for('xhtmlTest.html')
 
-          expect do
-            driver.find_element(id: 'nonexistant')
-          end.to raise_error(WebDriver::Error::NoSuchElementError)
-        end
+        expect {
+          driver.find_element(id: 'nonexistent')
+        }.to raise_error(WebDriver::Error::NoSuchElementError, /#no-such-element-exception/)
+      end
 
-        compliant_on browser: :ff_esr do
-          it 'should show stack trace information' do
-            driver.navigate.to url_for('xhtmlTest.html')
+      it 'has backtrace locations' do
+        driver.find_element(id: 'nonexistent')
+      rescue WebDriver::Error::NoSuchElementError => e
+        expect(e.backtrace_locations).not_to be_empty
+      end
 
-            rescued = false
-            ex = nil
+      it 'has cause' do
+        driver.find_element(id: 'nonexistent')
+      rescue WebDriver::Error::NoSuchElementError => e
+        expect(e.cause).to be_a(WebDriver::Error::WebDriverError)
+      end
 
-            begin
-              driver.find_element(id: 'nonexistant')
-            rescue => ex
-              rescued = true
-            end
-
-            expect(rescued).to be true
-            expect(ex.backtrace.first).to include('[remote server]')
-          end
-        end
+      it 'has backtrace' do
+        driver.find_element(id: 'nonexistent')
+      rescue WebDriver::Error::NoSuchElementError => e
+        expect(e.backtrace).not_to be_empty
       end
     end
   end # WebDriver

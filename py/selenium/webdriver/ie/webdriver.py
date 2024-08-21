@@ -15,48 +15,60 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from selenium.webdriver.common import utils
+from selenium.webdriver.common.driver_finder import DriverFinder
+from selenium.webdriver.remote.remote_connection import RemoteConnection
 from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-from .service import Service
 
-DEFAULT_TIMEOUT = 30
-DEFAULT_PORT = 0
-DEFAULT_HOST = None
-DEFAULT_LOG_LEVEL = None
-DEFAULT_LOG_FILE = None
+from .options import Options
+from .service import Service
 
 
 class WebDriver(RemoteWebDriver):
+    """Controls the IEServerDriver and allows you to drive Internet
+    Explorer."""
 
-    def __init__(self, executable_path='IEDriverServer.exe', capabilities=None,
-                 port=DEFAULT_PORT, timeout=DEFAULT_TIMEOUT, host=DEFAULT_HOST,
-                 log_level=DEFAULT_LOG_LEVEL, log_file=DEFAULT_LOG_FILE):
-        self.port = port
-        if self.port == 0:
-            self.port = utils.free_port()
-        self.host = host
-        self.log_level = log_level
-        self.log_file = log_file
+    def __init__(
+        self,
+        options: Options = None,
+        service: Service = None,
+        keep_alive: bool = True,
+    ) -> None:
+        """Creates a new instance of the Ie driver.
 
-        self.iedriver = Service(
-            executable_path,
-            port=self.port,
-            host=self.host,
-            log_level=self.log_level,
-            log_file=self.log_file)
+        Starts the service and then creates new instance of Ie driver.
 
-        self.iedriver.start()
+        :Args:
+         - options - IE Options instance, providing additional IE options
+         - service - (Optional) service instance for managing the starting and stopping of the driver.
+         - keep_alive - Whether to configure RemoteConnection to use HTTP keep-alive.
+        """
 
-        if capabilities is None:
-            capabilities = DesiredCapabilities.INTERNETEXPLORER
+        self.service = service if service else Service()
+        options = options if options else Options()
 
-        RemoteWebDriver.__init__(
-            self,
-            command_executor='http://localhost:%d' % self.port,
-            desired_capabilities=capabilities)
+        self.service.path = DriverFinder(self.service, options).get_driver_path()
+        self.service.start()
+
+        executor = RemoteConnection(
+            remote_server_addr=self.service.service_url,
+            keep_alive=keep_alive,
+            ignore_proxy=options._ignore_local_proxy,
+        )
+
+        try:
+            super().__init__(command_executor=executor, options=options)
+        except Exception:
+            self.quit()
+            raise
+
         self._is_remote = False
 
-    def quit(self):
-        RemoteWebDriver.quit(self)
-        self.iedriver.stop()
+    def quit(self) -> None:
+        """Closes the browser and shuts down the IEServerDriver executable."""
+        try:
+            super().quit()
+        except Exception:
+            # We don't care about the message because something probably has gone wrong
+            pass
+        finally:
+            self.service.stop()

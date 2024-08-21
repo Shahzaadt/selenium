@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,7 +20,10 @@
 module Selenium
   module WebDriver
     class Element
+      ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf'
+
       include SearchContext
+      include TakesScreenshot
 
       #
       # Creates a new Element
@@ -34,16 +37,16 @@ module Selenium
       end
 
       def inspect
-        format '#<%s:0x%x id=%s>', self.class, hash * 2, @id.inspect
+        format '#<%<class>s:0x%<hash>x id=%<id>s>', class: self.class, hash: hash * 2, id: @id.inspect
       end
 
       def ==(other)
         other.is_a?(self.class) && ref == other.ref
       end
-      alias_method :eql?, :==
+      alias eql? ==
 
       def hash
-        @id.hash ^ @bridge.hash
+        [@id, @bridge].hash
       end
 
       #
@@ -89,13 +92,18 @@ module Selenium
       end
 
       #
-      # Get the value of a the given attribute of the element. Will return the current value, even if
-      # this has been modified after the page has been loaded. More exactly, this method will return
-      # the value of the given attribute, unless that attribute is not present, in which case the
-      # value of the property with the same name is returned. If neither value is set, nil is
-      # returned. The "style" attribute is converted as best can be to a text representation with a
-      # trailing semi-colon. The following are deemed to be "boolean" attributes, and will
-      # return either "true" or "false":
+      # This method attempts to provide the most likely desired current value for the attribute
+      # of the element, even when that desired value is actually a JavaScript property.
+      # It is implemented with a custom JavaScript atom. To obtain the exact value of the attribute or property,
+      # use #dom_attribute or #property methods respectively.
+      #
+      # More exactly, this method will return the value of the property with the given name,
+      # if it exists. If it does not, then the value of the attribute with the given name is returned.
+      # If neither exists, null is returned.
+      #
+      # The "style" attribute is converted as best can be to a text representation with a trailing semicolon.
+      #
+      # The following are deemed to be "boolean" attributes, and will return either "true" or "false":
       #
       # async, autofocus, autoplay, checked, compact, complete, controls, declare, defaultchecked,
       # defaultselected, defer, disabled, draggable, ended, formnovalidate, hidden, indeterminate,
@@ -103,13 +111,16 @@ module Selenium
       # nowrap, open, paused, pubdate, readonly, required, reversed, scoped, seamless, seeking,
       # selected, spellcheck, truespeed, willvalidate
       #
-      # Finally, the following commonly mis-capitalized attribute/property names are evaluated as
-      # expected:
+      # Finally, the following commonly mis-capitalized attribute/property names are evaluated as expected:
       #
-      # class, readonly
+      # When the value of "class" is requested, the "className" property is returned.
+      # When the value of "readonly" is requested, the "readOnly" property is returned.
       #
       # @param [String] name attribute name
       # @return [String, nil] attribute value
+      #
+      # @see #dom_attribute
+      # @see #property
       #
 
       def attribute(name)
@@ -117,15 +128,56 @@ module Selenium
       end
 
       #
-      # Get the value of a the given property with the same name of the element. If the value is not
-      # set, nil is returned.
+      # Gets the value of a declared HTML attribute of this element.
+      #
+      # As opposed to the #attribute method, this method
+      # only returns attributes declared in the element's HTML markup.
+      #
+      # If the attribute is not set, nil is returned.
+      #
+      # @param [String] name attribute name
+      # @return [String, nil] attribute value
+      #
+      # @see #attribute
+      # @see #property
+      #
+
+      def dom_attribute(name)
+        bridge.element_dom_attribute @id, name
+      end
+
+      #
+      # Gets the value of a JavaScript property of this element
+      # This will return the current value,
+      # even if this has been modified after the page has been loaded.
+      # If the value is not set, nil is returned.
       #
       # @param [String] name property name
       # @return [String, nil] property value
       #
 
       def property(name)
-        bridge.element_property self, name
+        bridge.element_property @id, name
+      end
+
+      #
+      # Gets the computed WAI-ARIA role of element
+      #
+      # @return [String]
+      #
+
+      def aria_role
+        bridge.element_aria_role @id
+      end
+
+      #
+      # Gets the computed WAI-ARIA label of element.
+      #
+      # @return [String]
+      #
+
+      def accessible_name
+        bridge.element_aria_label @id
       end
 
       #
@@ -155,7 +207,7 @@ module Selenium
       def send_keys(*args)
         bridge.send_keys_to_element @id, Keys.encode(args)
       end
-      alias_method :send_key, :send_keys
+      alias send_key send_keys
 
       #
       # If this element is a text entry element, this will clear the value. Has no effect on other
@@ -198,7 +250,7 @@ module Selenium
       #
 
       def displayed?
-        bridge.element_displayed? @id
+        bridge.element_displayed? self
       end
 
       #
@@ -223,7 +275,7 @@ module Selenium
       def css_value(prop)
         bridge.element_value_of_css_property @id, prop
       end
-      alias_method :style, :css_value
+      alias style css_value
 
       #
       # Get the location of this element.
@@ -265,33 +317,42 @@ module Selenium
         bridge.element_size @id
       end
 
+      #
+      # Returns the shadow root of an element.
+      #
+      # @return [WebDriver::ShadowRoot]
+      #
+
+      def shadow_root
+        bridge.shadow_root @id
+      end
+
       #-------------------------------- sugar  --------------------------------
 
       #
       #   element.first(id: 'foo')
       #
 
-      alias_method :first, :find_element
+      alias first find_element
 
       #
       #   element.all(class: 'bar')
       #
 
-      alias_method :all, :find_elements
+      alias all find_elements
 
       #
       #   element['class'] or element[:class] #=> "someclass"
       #
-      alias_method :[], :attribute
+      alias [] attribute
 
       #
-      # for SearchContext and execute_script
-      #
       # @api private
+      # @see SearchContext
       #
 
       def ref
-        @id
+        [:element, @id]
       end
 
       #
@@ -312,12 +373,7 @@ module Selenium
       #
 
       def as_json(*)
-        key = if bridge.dialect == :w3c
-                'element-6066-11e4-a52e-4f735466cecf'
-              else
-                'ELEMENT'
-              end
-        @id.is_a?(Hash) ? @id : {key => @id}
+        @id.is_a?(Hash) ? @id : {ELEMENT_KEY => @id}
       end
 
       private
@@ -329,6 +385,10 @@ module Selenium
         type = attribute(:type).to_s.downcase
 
         tn == 'option' || (tn == 'input' && %w[radio checkbox].include?(type))
+      end
+
+      def screenshot
+        bridge.element_screenshot(@id)
       end
     end # Element
   end # WebDriver

@@ -1,4 +1,4 @@
-﻿// <copyright file="ResourceUtilities.cs" company="WebDriver Committers">
+// <copyright file="ResourceUtilities.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -16,18 +16,62 @@
 // limitations under the License.
 // </copyright>
 
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace OpenQA.Selenium.Internal
 {
     /// <summary>
     /// Encapsulates methods for finding and extracting WebDriver resources.
     /// </summary>
-    public static class ResourceUtilities
+    internal static class ResourceUtilities
     {
+        private static string productVersion;
+        private static string platformFamily;
+
+        /// <summary>
+        /// Gets a string representing the informational version of the Selenium product.
+        /// </summary>
+        public static string ProductVersion
+        {
+            get
+            {
+                if (productVersion == null)
+                {
+                    Assembly executingAssembly = Assembly.GetExecutingAssembly();
+                    var assemblyInformationalVersionAttribute = executingAssembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
+                    if (assemblyInformationalVersionAttribute == null)
+                    {
+                        productVersion = "Unknown";
+                    }
+                    else
+                    {
+                        productVersion = assemblyInformationalVersionAttribute.InformationalVersion;
+                    }
+                }
+
+                return productVersion;
+            }
+        }
+
+        /// <summary>
+        /// Gets a string representing the platform family on which the Selenium assembly is executing.
+        /// </summary>
+        public static string PlatformFamily
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(platformFamily))
+                {
+                    platformFamily = GetPlatformString();
+                }
+
+                return platformFamily;
+            }
+        }
+
         /// <summary>
         /// Gets a <see cref="Stream"/> that contains the resource to use.
         /// </summary>
@@ -66,7 +110,7 @@ namespace OpenQA.Selenium.Internal
                     throw new WebDriverException("The file specified does not exist, and you have specified no internal resource ID");
                 }
 
-                Assembly executingAssembly = Assembly.GetCallingAssembly();
+                Assembly executingAssembly = Assembly.GetExecutingAssembly();
                 resourceStream = executingAssembly.GetManifestResourceStream(resourceId);
             }
 
@@ -78,16 +122,22 @@ namespace OpenQA.Selenium.Internal
             return resourceStream;
         }
 
-        /// <summary>
-        /// Returns a value indicating whether a resource exists with the specified ID.
-        /// </summary>
-        /// <param name="resourceId">ID of the embedded resource to check for.</param>
-        /// <returns><see langword="true"/> if the resource exists in the calling assembly; otherwise <see langword="false"/>.</returns>
-        public static bool IsValidResourceName(string resourceId)
+        private static string GetPlatformString()
         {
-            Assembly executingAssembly = Assembly.GetCallingAssembly();
-            List<string> resourceNames = new List<string>(executingAssembly.GetManifestResourceNames());
-            return resourceNames.Contains(resourceId);
+            string platformName = "unknown";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                platformName = "windows";
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                platformName = "linux";
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                platformName = "mac";
+            }
+            return platformName;
         }
     }
 }

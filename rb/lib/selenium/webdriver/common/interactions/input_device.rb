@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -22,8 +22,15 @@ require 'securerandom'
 module Selenium
   module WebDriver
     module Interactions
+      #
+      # Superclass for the input device sources
+      # Manages Array of Interaction instances for the device
+      #
+      # @api private
+      #
+
       class InputDevice
-        attr_reader :name, :actions
+        attr_reader :name, :actions, :type
 
         def initialize(name = nil)
           @name = name || SecureRandom.uuid
@@ -32,6 +39,7 @@ module Selenium
 
         def add_action(action)
           raise TypeError, "#{action.inspect} is not a valid action" unless action.class < Interaction
+
           @actions << action
         end
 
@@ -39,13 +47,12 @@ module Selenium
           @actions.clear
         end
 
-        def create_pause(duration = nil)
+        def create_pause(duration = 0)
           add_action(Pause.new(self, duration))
         end
 
-        def no_actions? # Determine if only pauses are present
-          actions = @actions.reject { |action| action.type == Interaction::PAUSE }
-          actions.empty?
+        def encode
+          {type: type, id: name, actions: @actions.map(&:encode)} unless @actions.empty?
         end
       end # InputDevice
     end # Interactions

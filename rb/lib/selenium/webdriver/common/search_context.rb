@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -30,9 +30,18 @@ module Selenium
         link_text: 'link text',
         name: 'name',
         partial_link_text: 'partial link text',
+        relative: 'relative',
         tag_name: 'tag name',
         xpath: 'xpath'
       }.freeze
+
+      class << self
+        attr_accessor :extra_finders
+
+        def finders
+          FINDERS.merge(extra_finders || {})
+        end
+      end
 
       #
       # Find the first element matching the given arguments
@@ -56,13 +65,10 @@ module Selenium
       def find_element(*args)
         how, what = extract_args(args)
 
-        by = FINDERS[how.to_sym]
+        by = SearchContext.finders[how.to_sym]
         raise ArgumentError, "cannot find element by #{how.inspect}" unless by
 
-        bridge.find_element_by by, what.to_s, ref
-      rescue Selenium::WebDriver::Error::TimeOutError
-        # Implicit Wait times out in Edge
-        raise Selenium::WebDriver::Error::NoSuchElementError
+        bridge.find_element_by by, what, ref
       end
 
       #
@@ -74,13 +80,10 @@ module Selenium
       def find_elements(*args)
         how, what = extract_args(args)
 
-        by = FINDERS[how.to_sym]
+        by = SearchContext.finders[how.to_sym]
         raise ArgumentError, "cannot find elements by #{how.inspect}" unless by
 
-        bridge.find_elements_by by, what.to_s, ref
-      rescue Selenium::WebDriver::Error::TimeOutError
-        # Implicit Wait times out in Edge
-        []
+        bridge.find_elements_by by, what, ref
       end
 
       private
@@ -93,14 +96,13 @@ module Selenium
           arg = args.first
 
           unless arg.respond_to?(:shift)
-            raise ArgumentError, "expected #{arg.inspect}:#{arg.class} to respond to #shift"
+            raise ArgumentError,
+                  "expected #{arg.inspect}:#{arg.class} to respond to #shift"
           end
 
           # this will be a single-entry hash, so use #shift over #first or #[]
           arr = arg.dup.shift
-          unless arr.size == 2
-            raise ArgumentError, "expected #{arr.inspect} to have 2 elements"
-          end
+          raise ArgumentError, "expected #{arr.inspect} to have 2 elements" unless arr.size == 2
 
           arr
         else

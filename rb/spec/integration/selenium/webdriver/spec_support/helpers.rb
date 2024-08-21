@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -25,16 +25,16 @@ module Selenium
           GlobalTestEnv.driver_instance
         end
 
-        def reset_driver!(time = 0)
-          GlobalTestEnv.reset_driver!(time)
+        def reset_driver!(...)
+          GlobalTestEnv.reset_driver!(...)
         end
 
         def quit_driver
           GlobalTestEnv.quit_driver
         end
 
-        def ensure_single_window
-          GlobalTestEnv.ensure_single_window
+        def create_driver!(...)
+          GlobalTestEnv.create_driver!(...)
         end
 
         def url_for(filename)
@@ -42,11 +42,11 @@ module Selenium
         end
 
         def fix_windows_path(path)
-          return path unless WebDriver::Platform.os == :windows
+          return path unless WebDriver::Platform.windows?
 
           if GlobalTestEnv.browser == :ie
             path = path[%r{file://(.*)}, 1]
-            path.tr!('/', '\\')
+            path = WebDriver::Platform.windows_path(path)
 
             "file://#{path}"
           else
@@ -63,12 +63,12 @@ module Selenium
         end
 
         def wait_for_alert
-          wait = Wait.new(timeout: 5, ignore: Error::NoAlertPresentError)
+          wait = Wait.new(timeout: 5, ignore: Error::NoSuchAlertError)
           wait.until { driver.switch_to.alert }
         end
 
         def wait_for_no_alert
-          wait = Wait.new(timeout: 5, ignore: Error::UnhandledAlertError)
+          wait = Wait.new(timeout: 5, ignore: Error::UnexpectedAlertOpenError)
           wait.until { driver.title }
         end
 
@@ -77,8 +77,29 @@ module Selenium
           wait.until { driver.find_element(locator) }
         end
 
+        def wait_for_new_url(old_url)
+          wait = Wait.new(timeout: 5)
+          wait.until do
+            url = driver.current_url
+            !(url.empty? || url.include?(old_url))
+          end
+        end
+
         def wait(timeout = 10)
           Wait.new(timeout: timeout)
+        end
+
+        def png_size(path)
+          png = File.read(path, mode: 'rb')[0x10..0x18]
+          width = png.unpack1('NN')
+          height = png.unpack('NN').last
+
+          if Platform.mac? # Retina
+            width /= 2
+            height /= 2
+          end
+
+          [width, height]
         end
       end # Helpers
     end # SpecSupport

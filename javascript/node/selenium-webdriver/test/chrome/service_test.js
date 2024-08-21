@@ -15,31 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict';
+'use strict'
 
-var webdriver = require('../..'),
-    chrome = require('../../chrome'),
-    assert = require('../../testing/assert');
+const assert = require('node:assert')
+const chrome = require('selenium-webdriver/chrome')
+const test = require('../../lib/test')
+const { getBinaryPaths } = require('selenium-webdriver/common/driverFinder')
 
-var test = require('../../lib/test');
+test.suite(
+  function (_env) {
+    describe('chromedriver', function () {
+      let service
+      afterEach(function () {
+        if (service) {
+          return service.kill()
+        }
+      })
 
-
-test.suite(function(env) {
-  describe('chromedriver', function() {
-    var service;
-    test.afterEach(function() {
-      if (service) {
-        return service.kill();
-      }
-    });
-
-    test.it('can be started on a custom path', function() {
-      service = new chrome.ServiceBuilder()
-          .setPath('/foo/bar/baz')
-          .build();
-      return service.start().then(function(url) {
-        assert(url).endsWith('/foo/bar/baz');
-      });
-    });
-  });
-}, {browsers: ['chrome']});
+      it('can be started on a custom path', function () {
+        service = new chrome.ServiceBuilder().setPath('/foo/bar/baz').build()
+        if (!service.getExecutable()) {
+          service.setExecutable(getBinaryPaths(new chrome.Options()).driverPath)
+        }
+        return service.start().then(function (url) {
+          assert.ok(url.endsWith('/foo/bar/baz'), 'unexpected url: ' + url)
+        })
+      })
+    })
+  },
+  { browsers: ['chrome'] },
+)

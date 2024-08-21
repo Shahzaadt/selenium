@@ -1,5 +1,4 @@
 using NUnit.Framework;
-using OpenQA.Selenium.Internal;
 
 namespace OpenQA.Selenium
 {
@@ -11,7 +10,7 @@ namespace OpenQA.Selenium
         {
             driver.Url = simpleTestPage;
             IWebElement parent = driver.FindElement(By.Id("containsSomeDiv"));
-            Assert.IsTrue(parent is IWrapsDriver);
+            Assert.That(parent, Is.InstanceOf<IWrapsDriver>());
         }
 
         [Test]
@@ -19,34 +18,33 @@ namespace OpenQA.Selenium
         {
             driver.Url = simpleTestPage;
             IWebElement parent = driver.FindElement(By.Id("containsSomeDiv"));
-            Assert.IsTrue(((IWrapsDriver)parent).WrappedDriver == driver);
+            Assert.That(((IWrapsDriver)parent).WrappedDriver, Is.EqualTo(driver));
         }
 
-        //////////////////////////////////////////////////////////
-        // Tests below here do not exist in the Java unit tests.
-        //////////////////////////////////////////////////////////
-
+        //------------------------------------------------------------------
+        // Tests below here are not included in the Java test suite
+        //------------------------------------------------------------------
         [Test]
         public void ShouldToggleElementAndCheckIfElementIsSelected()
         {
             driver.Url = simpleTestPage;
             IWebElement checkbox = driver.FindElement(By.Id("checkbox1"));
-            Assert.IsFalse(checkbox.Selected);
+            Assert.That(checkbox.Selected, Is.False);
             checkbox.Click();
-            Assert.IsTrue(checkbox.Selected);
+            Assert.That(checkbox.Selected, Is.True);
             checkbox.Click();
-            Assert.IsFalse(checkbox.Selected);
+            Assert.That(checkbox.Selected, Is.False);
         }
 
         [Test]
         public void ShouldThrowExceptionOnNonExistingElement()
         {
             driver.Url = simpleTestPage;
-            Assert.Throws<NoSuchElementException>(() => driver.FindElement(By.Id("doesnotexist")));
+            Assert.That(() => driver.FindElement(By.Id("doesnotexist")), Throws.InstanceOf<NoSuchElementException>());
         }
 
         [Test]
-        public void ShouldGetElementName() 
+        public void ShouldGetElementName()
         {
             driver.Url = simpleTestPage;
 
@@ -56,34 +54,33 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        public void ShouldGetElementText() 
+        public void ShouldGetElementText()
         {
-
             driver.Url = simpleTestPage;
 
             IWebElement oneliner = driver.FindElement(By.Id("oneline"));
             Assert.AreEqual("A single line of text", oneliner.Text);
 
             IWebElement twoblocks = driver.FindElement(By.Id("twoblocks"));
-            Assert.AreEqual("Some text" + 
-                System.Environment.NewLine + 
+            Assert.AreEqual("Some text" +
+                System.Environment.NewLine +
                 "Some more text", twoblocks.Text);
 
         }
 
         [Test]
-        public void ShouldReturnWhetherElementIsDisplayed() 
+        public void ShouldReturnWhetherElementIsDisplayed()
         {
             driver.Url = javascriptPage;
 
             IWebElement hidden = driver.FindElement(By.Id("hidden"));
-            Assert.IsFalse(hidden.Displayed);
+            Assert.That(hidden.Displayed, Is.False, "Element with ID 'hidden' should not be displayed");
 
             IWebElement none = driver.FindElement(By.Id("none"));
-            Assert.IsFalse(none.Displayed);
+            Assert.That(none.Displayed, Is.False, "Element with ID 'none' should not be displayed");
 
             IWebElement displayed = driver.FindElement(By.Id("displayed"));
-            Assert.IsTrue(displayed.Displayed);
+            Assert.That(displayed.Displayed, Is.True, "Element with ID 'displayed' should not be displayed");
         }
 
         [Test]
@@ -92,7 +89,7 @@ namespace OpenQA.Selenium
             driver.Url = javascriptPage;
 
             IWebElement textbox = driver.FindElement(By.Id("keyUp"));
-            textbox.SendKeys("a@#$็.๓");
+            textbox.SendKeys("a@#$รง.รณ");
             textbox.Clear();
             Assert.AreEqual("", textbox.GetAttribute("value"));
         }
@@ -103,34 +100,34 @@ namespace OpenQA.Selenium
             driver.Url = javascriptPage;
 
             IWebElement textbox = driver.FindElement(By.Id("keyUp"));
-            textbox.SendKeys("a@#$็.๓");
+            textbox.SendKeys("a@#$รง.รณ");
             textbox.Clear();
             Assert.AreEqual("", textbox.GetAttribute("value"));
         }
 
         [Test]
-        public void ShouldSendKeysToElement() 
+        public void ShouldSendKeysToElement()
         {
             driver.Url = javascriptPage;
 
             IWebElement textbox = driver.FindElement(By.Id("keyUp"));
-            textbox.SendKeys("a@#$็.๓");
-            Assert.AreEqual("a@#$็.๓", textbox.GetAttribute("value"));
+            textbox.SendKeys("a@#$รง.รณ");
+            Assert.AreEqual("a@#$รง.รณ", textbox.GetAttribute("value"));
         }
 
         [Test]
-        public void ShouldSubmitElement() 
+        public void ShouldSubmitElement()
         {
             driver.Url = javascriptPage;
 
             IWebElement submit = driver.FindElement(By.Id("submittingButton"));
             submit.Submit();
 
-            Assert.IsTrue(driver.Url.StartsWith(resultPage));
+            Assert.That(driver.Url, Does.StartWith(resultPage));
         }
 
         [Test]
-        public void ShouldClickLinkElement() 
+        public void ShouldClickLinkElement()
         {
             driver.Url = javascriptPage;
             IWebElement changedDiv = driver.FindElement(By.Id("dynamo"));
@@ -140,7 +137,7 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        public void ShouldGetAttributesFromElement() 
+        public void ShouldGetAttributesFromElement()
         {
             driver.Url = (javascriptPage);
 

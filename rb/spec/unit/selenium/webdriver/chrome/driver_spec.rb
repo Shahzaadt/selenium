@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,99 +17,79 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
     module Chrome
       describe Driver do
-        let(:resp)    { {'sessionId' => 'foo', 'value' => Remote::Capabilities.chrome.as_json} }
-        let(:service) { instance_double(Service, start: true, uri: 'http://example.com') }
-        let(:caps)    { Remote::Capabilities.new }
-        let(:http)    { instance_double(Remote::Http::Default, call: resp).as_null_object }
+        let(:service) do
+          instance_double(Service, launch: service_manager, executable_path: nil, 'executable_path=': nil,
+                                   class: Chrome::Service)
+        end
+        let(:service_manager) { instance_double(ServiceManager, uri: 'http://example.com') }
+        let(:valid_response) do
+          {status: 200,
+           body: {value: {sessionId: 0, capabilities: {browserName: 'chrome'}}}.to_json,
+           headers: {content_type: 'application/json'}}
+        end
+        let(:finder) { instance_double(DriverFinder, browser_path?: false, driver_path: '/path/to/driver') }
+
+        def expect_request(body: nil, endpoint: nil)
+          body = (body || {capabilities: {alwaysMatch: {browserName: 'chrome', 'goog:chromeOptions': {}}}}).to_json
+          endpoint ||= "#{service_manager.uri}/session"
+          stub_request(:post, endpoint).with(body: body).to_return(valid_response)
+        end
 
         before do
-          allow(Remote::Capabilities).to receive(:chrome).and_return(caps)
-          allow(Service).to receive(:binary_path).and_return('/foo')
-          allow(Service).to receive(:new).and_return(service)
+          allow(Service).to receive_messages(new: service, executable_path: nil)
         end
 
-        it 'sets the args capability' do
-          Driver.new(http_client: http, args: %w[--foo=bar])
+        it 'uses DriverFinder when provided Service without path' do
+          allow(DriverFinder).to receive(:new).and_return(finder)
+          expect_request
+          options = Options.new
 
-          expect(caps[:chrome_options][:args]).to eq(%w[--foo=bar])
+          described_class.new(service: service, options: options)
+          expect(finder).to have_received(:driver_path)
         end
 
-        it 'sets the proxy capabilitiy' do
-          proxy = Proxy.new(http: 'localhost:1234')
-          Driver.new(http_client: http, proxy: proxy)
+        it 'does not use DriverFinder when provided Service with path' do
+          expect_request
+          allow(service).to receive(:executable_path).and_return('path')
+          allow(DriverFinder).to receive(:new).and_return(finder)
 
-          expect(caps[:proxy]).to eq(proxy)
+          described_class.new(service: service)
+          expect(finder).not_to have_received(:driver_path)
         end
 
-        it 'does not set the chrome.detach capability by default' do
-          Driver.new(http_client: http)
+        it 'does not require any parameters' do
+          allow(DriverFinder).to receive(:new).and_return(finder)
+          expect_request
 
-          expect(caps[:chrome_options]).to be nil
-          expect(caps['chrome.detach']).to be nil
+          expect { described_class.new }.not_to raise_exception
         end
 
-        it 'sets the prefs capability' do
-          Driver.new(http_client: http, prefs: {foo: 'bar'})
+        it 'accepts provided Options as sole parameter' do
+          allow(DriverFinder).to receive(:new).and_return(finder)
 
-          expect(caps[:chrome_options][:prefs]).to eq(foo: 'bar')
+          opts = {args: ['-f']}
+          expect_request(body: {capabilities: {alwaysMatch: {browserName: 'chrome', 'goog:chromeOptions': opts}}})
+
+          expect { described_class.new(options: Options.new(**opts)) }.not_to raise_exception
         end
 
-        it 'lets the user override chrome.detach' do
-          Driver.new(http_client: http, detach: true)
+        it 'raises an ArgumentError if parameter is not recognized' do
+          allow(DriverFinder).to receive(:new).and_return(finder)
 
-          expect(caps[:chrome_options][:detach]).to be true
+          msg = 'unknown keyword: :invalid'
+          expect { described_class.new(invalid: 'foo') }.to raise_error(ArgumentError, msg)
         end
 
-        it 'raises an ArgumentError if args is not an Array' do
-          expect { Driver.new(args: '--foo=bar') }.to raise_error(ArgumentError)
-        end
-
-        it 'uses the given profile' do
-          profile = Profile.new
-
-          profile['some_pref'] = true
-          profile.add_extension(__FILE__)
-
-          Driver.new(http_client: http, profile: profile)
-
-          profile_data = profile.as_json
-          expect(caps[:chrome_options][:args].first).to include(profile_data[:directory])
-          expect(caps[:chrome_options][:extensions]).to eq(profile_data[:extensions])
-        end
-
-        it 'takes desired capabilities' do
-          custom_caps = Remote::Capabilities.new
-          custom_caps[:chrome_options] = {'foo' => 'bar'}
-
-          expect(http).to receive(:call) do |_, _, payload|
-            expect(payload[:desiredCapabilities][:chrome_options]).to include('foo' => 'bar')
-            resp
-          end
-
-          Driver.new(http_client: http, desired_capabilities: custom_caps)
-        end
-
-        it 'lets direct arguments take presedence over capabilities' do
-          custom_caps = Remote::Capabilities.new
-          custom_caps[:chrome_options] = {'args' => %w[foo bar]}
-
-          expect(http).to receive(:call) do |_, _, payload|
-            expect(payload[:desiredCapabilities][:chrome_options][:args]).to eq(['baz'])
-            resp
-          end
-
-          Driver.new(http_client: http, desired_capabilities: custom_caps, args: %w[baz])
-        end
-
-        it 'handshakes protocol' do
-          expect(Remote::Bridge).to receive(:handshake)
-          Driver.new(http_client: http)
+        it 'does not accept Options of the wrong class' do
+          expect {
+            described_class.new(options: Options.firefox)
+          }.to raise_exception(ArgumentError, ':options must be an instance of Selenium::WebDriver::Chrome::Options')
         end
       end
     end # Chrome

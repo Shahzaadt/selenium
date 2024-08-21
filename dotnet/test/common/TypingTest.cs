@@ -1,6 +1,7 @@
-using System;
 using NUnit.Framework;
 using OpenQA.Selenium.Environment;
+using System;
+using System.Runtime.InteropServices;
 
 namespace OpenQA.Selenium
 {
@@ -8,7 +9,6 @@ namespace OpenQA.Selenium
     public class TypingTest : DriverTestFixture
     {
         [Test]
-        [Category("Javascript")]
         public void ShouldFireKeyPressEvents()
         {
             driver.Url = javascriptPage;
@@ -18,11 +18,10 @@ namespace OpenQA.Selenium
 
             IWebElement result = driver.FindElement(By.Id("result"));
             string text = result.Text;
-            Assert.IsTrue(text.Contains("press:"), "Text should contain 'press:'. Actual text: {0}", text);
+            Assert.That(text, Does.Contain("press:"));
         }
 
         [Test]
-        [Category("Javascript")]
         public void ShouldFireKeyDownEvents()
         {
             driver.Url = javascriptPage;
@@ -32,11 +31,10 @@ namespace OpenQA.Selenium
 
             IWebElement result = driver.FindElement(By.Id("result"));
             string text = result.Text;
-            Assert.IsTrue(text.Contains("down:"), "Text should contain 'down:'. Actual text: {0}", text);
+            Assert.That(text, Does.Contain("down:"));
         }
 
         [Test]
-        [Category("Javascript")]
         public void ShouldFireKeyUpEvents()
         {
             driver.Url = javascriptPage;
@@ -46,7 +44,7 @@ namespace OpenQA.Selenium
 
             IWebElement result = driver.FindElement(By.Id("result"));
             string text = result.Text;
-            Assert.IsTrue(text.Contains("up:"), "Text should contain 'up:'. Actual text: {0}", text);
+            Assert.That(text, Does.Contain("up:"));
         }
 
         [Test]
@@ -111,7 +109,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
         public void ArrowKeysShouldNotBePrintable()
         {
             driver.Url = javascriptPage;
@@ -123,7 +120,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [IgnoreBrowser(Browser.HtmlUnit)]
         public void ShouldBeAbleToUseArrowKeys()
         {
             driver.Url = javascriptPage;
@@ -135,7 +131,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
         public void WillSimulateAKeyUpWhenEnteringTextIntoInputElements()
         {
             driver.Url = javascriptPage;
@@ -148,7 +143,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
         public void WillSimulateAKeyDownWhenEnteringTextIntoInputElements()
         {
             driver.Url = javascriptPage;
@@ -163,7 +157,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
         public void WillSimulateAKeyPressWhenEnteringTextIntoInputElements()
         {
             driver.Url = javascriptPage;
@@ -178,7 +171,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
         public void WillSimulateAKeyUpWhenEnteringTextIntoTextAreas()
         {
             driver.Url = javascriptPage;
@@ -191,7 +183,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
         public void WillSimulateAKeyDownWhenEnteringTextIntoTextAreas()
         {
             driver.Url = javascriptPage;
@@ -206,7 +197,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
         public void WillSimulateAKeyPressWhenEnteringTextIntoTextAreas()
         {
             driver.Url = javascriptPage;
@@ -221,8 +211,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.Firefox, "Firefox demands to have the focus on the window already.")]
         public void ShouldFireFocusKeyEventsInTheRightOrder()
         {
             driver.Url = javascriptPage;
@@ -235,11 +223,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.IE, "Firefox-specific test. IE does not report key press event.")]
-        [IgnoreBrowser(Browser.HtmlUnit, "firefox-specific")]
-        [IgnoreBrowser(Browser.Chrome, "Firefox-specific test. Chrome does not report key press event.")]
-        [IgnoreBrowser(Browser.PhantomJS, "Firefox-specific test. PhantomJS does not report key press event.")]
         public void ShouldReportKeyCodeOfArrowKeys()
         {
             driver.Url = javascriptPage;
@@ -248,24 +231,22 @@ namespace OpenQA.Selenium
             IWebElement element = driver.FindElement(By.Id("keyReporter"));
 
             element.SendKeys(Keys.ArrowDown);
-            Assert.AreEqual("down: 40 press: 40 up: 40", result.Text.Trim());
+            CheckRecordedKeySequence(result, 40);
 
             element.SendKeys(Keys.ArrowUp);
-            Assert.AreEqual("down: 38 press: 38 up: 38", result.Text.Trim());
+            CheckRecordedKeySequence(result, 38);
 
             element.SendKeys(Keys.ArrowLeft);
-            Assert.AreEqual("down: 37 press: 37 up: 37", result.Text.Trim());
+            CheckRecordedKeySequence(result, 37);
 
             element.SendKeys(Keys.ArrowRight);
-            Assert.AreEqual("down: 39 press: 39 up: 39", result.Text.Trim());
+            CheckRecordedKeySequence(result, 39);
 
             // And leave no rubbish/printable keys in the "keyReporter"
             Assert.AreEqual(string.Empty, element.GetAttribute("value"));
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
         public void ShouldReportKeyCodeOfArrowKeysUpDownEvents()
         {
             driver.Url = javascriptPage;
@@ -275,30 +256,29 @@ namespace OpenQA.Selenium
 
             element.SendKeys(Keys.ArrowDown);
             string text = result.Text.Trim();
-            Assert.IsTrue(text.Contains("down: 40"), "Text should contain 'down: 40'. Actual text: {}", text);
-            Assert.IsTrue(text.Contains("up: 40"), "Text should contain 'up: 40'. Actual text: {}", text);
+            Assert.That(text, Does.Contain("down: 40"));
+            Assert.That(text, Does.Contain("up: 40"));
 
             element.SendKeys(Keys.ArrowUp);
             text = result.Text.Trim();
-            Assert.IsTrue(text.Trim().Contains("down: 38"), "Text should contain 'down: 38'. Actual text: {}", text);
-            Assert.IsTrue(text.Trim().Contains("up: 38"), "Text should contain 'up: 38'. Actual text: {}", text);
+            Assert.That(text, Does.Contain("down: 38"));
+            Assert.That(text, Does.Contain("up: 38"));
 
             element.SendKeys(Keys.ArrowLeft);
             text = result.Text.Trim();
-            Assert.IsTrue(text.Trim().Contains("down: 37"), "Text should contain 'down: 37'. Actual text: {}", text);
-            Assert.IsTrue(text.Trim().Contains("up: 37"), "Text should contain 'up: 37'. Actual text: {}", text);
+            Assert.That(text, Does.Contain("down: 37"));
+            Assert.That(text, Does.Contain("up: 37"));
 
             element.SendKeys(Keys.ArrowRight);
             text = result.Text.Trim();
-            Assert.IsTrue(text.Trim().Contains("down: 39"), "Text should contain 'down: 39'. Actual text: {}", text);
-            Assert.IsTrue(text.Trim().Contains("up: 39"), "Text should contain 'up: 39'. Actual text: {}", text);
+            Assert.That(text, Does.Contain("down: 39"));
+            Assert.That(text, Does.Contain("up: 39"));
 
             // And leave no rubbish/printable keys in the "keyReporter"
             Assert.AreEqual(string.Empty, element.GetAttribute("value"));
         }
 
         [Test]
-        [Category("Javascript")]
         public void NumericNonShiftKeys()
         {
             driver.Url = javascriptPage;
@@ -312,8 +292,7 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
+        [IgnoreBrowser(Browser.Firefox, "https://github.com/mozilla/geckodriver/issues/646")]
         public void NumericShiftKeys()
         {
             driver.Url = javascriptPage;
@@ -326,11 +305,10 @@ namespace OpenQA.Selenium
 
             Assert.AreEqual(numericShiftsEtc, element.GetAttribute("value"));
             string text = result.Text.Trim();
-            Assert.IsTrue(text.Contains(" up: 16"), "Text should contain ' up: 16'. Actual text: {0}", text);
+            Assert.That(text, Does.Contain(" up: 16"));
         }
 
         [Test]
-        [Category("Javascript")]
         public void LowerCaseAlphaKeys()
         {
             driver.Url = javascriptPage;
@@ -344,8 +322,7 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
+        [IgnoreBrowser(Browser.Firefox, "https://github.com/mozilla/geckodriver/issues/646")]
         public void UppercaseAlphaKeys()
         {
             driver.Url = javascriptPage;
@@ -358,12 +335,11 @@ namespace OpenQA.Selenium
 
             Assert.AreEqual(upperAlphas, element.GetAttribute("value"));
             string text = result.Text.Trim();
-            Assert.IsTrue(text.Contains(" up: 16"), "Text should contain ' up: 16'. Actual text: {0}", text);
+            Assert.That(text, Does.Contain(" up: 16"));
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
+        [IgnoreBrowser(Browser.Firefox, "https://github.com/mozilla/geckodriver/issues/646")]
         public void AllPrintableKeys()
         {
             driver.Url = javascriptPage;
@@ -378,11 +354,10 @@ namespace OpenQA.Selenium
 
             Assert.AreEqual(allPrintable, element.GetAttribute("value"));
             string text = result.Text.Trim();
-            Assert.IsTrue(text.Contains(" up: 16"), "Text should contain ' up: 16'. Actual text: {0}", text);
+            Assert.That(text, Does.Contain(" up: 16"));
         }
 
         [Test]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
         public void ArrowKeysAndPageUpAndDown()
         {
             driver.Url = javascriptPage;
@@ -395,29 +370,20 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
+        [IgnoreBrowser(Browser.Firefox, "https://github.com/mozilla/geckodriver/issues/2015")]
         public void HomeAndEndAndPageUpAndPageDownKeys()
         {
-            // FIXME: macs don't have HOME keys, would PGUP work?
-            if (System.Environment.OSVersion.Platform == PlatformID.MacOSX)
-            {
-                return;
-            }
-
             driver.Url = javascriptPage;
 
             IWebElement element = driver.FindElement(By.Id("keyReporter"));
 
-            element.SendKeys("abc" + Keys.Home + "0" + Keys.Left + Keys.Right +
-                             Keys.PageUp + Keys.PageDown + Keys.End + "1" + Keys.Home +
-                             "0" + Keys.PageUp + Keys.End + "111" + Keys.Home + "00");
+            element.SendKeys("abc" + HomeKey() + "0" + Keys.Left + Keys.Right +
+                             Keys.PageUp + Keys.PageDown + EndKey() + "1" + HomeKey() +
+                             "0" + Keys.PageUp + EndKey() + "111" + HomeKey() + "00");
             Assert.AreEqual("0000abc1111", element.GetAttribute("value"));
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
         public void DeleteAndBackspaceKeys()
         {
             driver.Url = javascriptPage;
@@ -435,8 +401,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
         public void SpecialSpaceKeys()
         {
             driver.Url = javascriptPage;
@@ -448,8 +412,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
         public void NumberpadKeys()
         {
             driver.Url = javascriptPage;
@@ -464,23 +426,18 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
-        public void NumberpadAndFunctionKeys()
+        public void FunctionKeys()
         {
             driver.Url = javascriptPage;
 
             IWebElement element = driver.FindElement(By.Id("keyReporter"));
 
-            element.SendKeys("FUNCTION" + Keys.F4 + "-KEYS" + Keys.F4);
-            element.SendKeys("" + Keys.F4 + "-TOO" + Keys.F4);
+            element.SendKeys("FUNCTION" + Keys.F8 + "-KEYS" + Keys.F8);
+            element.SendKeys("" + Keys.F8 + "-TOO" + Keys.F8);
             Assert.AreEqual("FUNCTION-KEYS-TOO", element.GetAttribute("value"));
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
-        [IgnoreBrowser(Browser.Safari, "Issue 4221")]
         public void ShiftSelectionDeletes()
         {
             driver.Url = javascriptPage;
@@ -497,16 +454,9 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
+        [IgnoreBrowser(Browser.Firefox, "https://github.com/mozilla/geckodriver/issues/646")]
         public void ChordControlHomeShiftEndDelete()
         {
-            // FIXME: macs don't have HOME keys, would PGUP work?
-            if (System.Environment.OSVersion.Platform == PlatformID.MacOSX)
-            {
-                return;
-            }
-
             driver.Url = javascriptPage;
 
             IWebElement result = driver.FindElement(By.Id("result"));
@@ -514,102 +464,80 @@ namespace OpenQA.Selenium
 
             element.SendKeys("!\"#$%&'()*+,-./0123456789:;<=>?@ ABCDEFG");
 
-            element.SendKeys(Keys.Home);
-            element.SendKeys("" + Keys.Shift + Keys.End + Keys.Delete);
+            element.SendKeys(HomeKey());
+            element.SendKeys("" + Keys.Shift + EndKey() + Keys.Delete);
 
             Assert.AreEqual(string.Empty, element.GetAttribute("value"));
             string text = result.Text.Trim();
-            Assert.IsTrue(text.Contains(" up: 16"), "Text should contain ' up: 16'. Actual text: {0}", text);
+            Assert.That(text, Does.Contain(" up: 16"));
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
-        public void ChordReveseShiftHomeSelectionDeletes()
+        [IgnoreBrowser(Browser.Firefox, "https://github.com/mozilla/geckodriver/issues/2015")]
+        public void ChordReverseShiftHomeSelectionDeletes()
         {
-            // FIXME: macs don't have HOME keys, would PGUP work?
-            if (System.Environment.OSVersion.Platform == PlatformID.MacOSX)
-            {
-                return;
-            }
             driver.Url = javascriptPage;
 
             IWebElement result = driver.FindElement(By.Id("result"));
             IWebElement element = driver.FindElement(By.Id("keyReporter"));
 
-            element.SendKeys("done" + Keys.Home);
+            element.SendKeys("done" + HomeKey());
             Assert.AreEqual("done", element.GetAttribute("value"));
 
             //Sending chords
-            element.SendKeys("" + Keys.Shift + "ALL " + Keys.Home);
+            element.SendKeys("" + Keys.Shift + "ALL " + HomeKey());
             Assert.AreEqual("ALL done", element.GetAttribute("value"));
 
             element.SendKeys(Keys.Delete);
             Assert.AreEqual("done", element.GetAttribute("value"), "done");
 
-            element.SendKeys("" + Keys.End + Keys.Shift + Keys.Home);
+            element.SendKeys("" + EndKey() + Keys.Shift + HomeKey());
             Assert.AreEqual("done", element.GetAttribute("value"));
             // Note: trailing SHIFT up here
             string text = result.Text.Trim();
-            Assert.IsTrue(text.Contains(" up: 16"), "Text should contain ' up: 16'. Actual text: {0}", text);
 
             element.SendKeys("" + Keys.Delete);
             Assert.AreEqual(string.Empty, element.GetAttribute("value"));
         }
 
-        // control-x control-v here for cut & paste tests, these work on windows
-        // and linux, but not on the MAC.
-
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "untested user agents")]
-        [IgnoreBrowser(Browser.WindowsPhone, "JavaScript-only implementations cannot use system clipboard")]
+        [IgnoreBrowser(Browser.Firefox, "https://github.com/mozilla/geckodriver/issues/2015")]
         public void ChordControlCutAndPaste()
         {
-            // FIXME: macs don't have HOME keys, would PGUP work?
-            if (System.Environment.OSVersion.Platform == PlatformID.MacOSX)
-            {
-                return;
-            }
-
             driver.Url = javascriptPage;
 
             IWebElement element = driver.FindElement(By.Id("keyReporter"));
-            IWebElement result = driver.FindElement(By.Id("result"));
 
             String paste = "!\"#$%&'()*+,-./0123456789:;<=>?@ ABCDEFG";
             element.SendKeys(paste);
             Assert.AreEqual(paste, element.GetAttribute("value"));
 
             //Chords
-            element.SendKeys("" + Keys.Home + Keys.Shift + Keys.End);
-            string text = result.Text.Trim();
-            Assert.IsTrue(text.Contains(" up: 16"), "Text should contain ' up: 16'. Actual text: {0}", text);
+            element.SendKeys("" + HomeKey() + Keys.Shift + EndKey());
 
-            element.SendKeys(Keys.Control + "x");
+            element.SendKeys(PrimaryModifier() + "x");
             Assert.AreEqual(string.Empty, element.GetAttribute("value"));
 
-            element.SendKeys(Keys.Control + "v");
+            element.SendKeys(PrimaryModifier() + "v");
             Assert.AreEqual(paste, element.GetAttribute("value"));
 
             element.SendKeys("" + Keys.Left + Keys.Left + Keys.Left +
-                             Keys.Shift + Keys.End);
-            element.SendKeys(Keys.Control + "x" + "v");
+                             Keys.Shift + EndKey());
+            element.SendKeys(PrimaryModifier() + "x" + "v");
             Assert.AreEqual(paste, element.GetAttribute("value"));
 
-            element.SendKeys(Keys.Home);
-            element.SendKeys(Keys.Control + "v");
-            element.SendKeys(Keys.Control + "v" + "v");
-            element.SendKeys(Keys.Control + "v" + "v" + "v");
+            element.SendKeys(HomeKey());
+            element.SendKeys(PrimaryModifier() + "v");
+            element.SendKeys(PrimaryModifier() + "v" + "v");
+            element.SendKeys(PrimaryModifier() + "v" + "v" + "v");
             Assert.AreEqual("EFGEFGEFGEFGEFGEFG" + paste, element.GetAttribute("value"));
 
-            element.SendKeys("" + Keys.End + Keys.Shift + Keys.Home +
+            element.SendKeys("" + EndKey() + Keys.Shift + HomeKey() +
                              Keys.Null + Keys.Delete);
             Assert.AreEqual(element.GetAttribute("value"), string.Empty);
         }
 
         [Test]
-        [Category("Javascript")]
         public void ShouldTypeIntoInputElementsThatHaveNoTypeAttribute()
         {
             driver.Url = formsPage;
@@ -621,8 +549,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.Chrome, "ChromeDriver2 allows typing into elements that prevent keydown")]
         public void ShouldNotTypeIntoElementsThatPreventKeyDownEvents()
         {
             driver.Url = javascriptPage;
@@ -634,8 +560,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.PhantomJS, "firefox-specific")]
         public void GenerateKeyPressEventEvenWhenElementPreventsDefault()
         {
             driver.Url = javascriptPage;
@@ -645,71 +569,6 @@ namespace OpenQA.Selenium
 
             silent.SendKeys("s");
             string text = result.Text;
-        }
-
-        [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.Safari, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.PhantomJS, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.Android, "Does not support contentEditable")]
-        [IgnoreBrowser(Browser.IPhone, "Does not support contentEditable")]
-        [IgnoreBrowser(Browser.Opera, "Does not support contentEditable")]
-        [IgnoreBrowser(Browser.Chrome, "ChromeDriver2 does not support contentEditable yet")]
-        [IgnoreBrowser(Browser.WindowsPhone, "Cannot type on contentEditable with synthetic events")]
-        public void TypingIntoAnIFrameWithContentEditableOrDesignModeSet()
-        {
-            if (TestUtilities.IsMarionette(driver))
-            {
-                Assert.Ignore("Marionette does not ContentEditable.");
-            }
-
-            driver.Url = richTextPage;
-
-            driver.SwitchTo().Frame("editFrame");
-            IWebElement element = driver.SwitchTo().ActiveElement();
-            element.SendKeys("Fishy");
-
-            driver.SwitchTo().DefaultContent();
-            IWebElement trusted = driver.FindElement(By.Id("istrusted"));
-            IWebElement id = driver.FindElement(By.Id("tagId"));
-
-            Assert.That(trusted.Text, Is.EqualTo("[true]").Or.EqualTo("[n/a]").Or.EqualTo("[]"));
-            Assert.That(id.Text, Is.EqualTo("[frameHtml]").Or.EqualTo("[theBody]"));
-        }
-
-        [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.HtmlUnit, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.Android, "Does not support contentEditable")]
-        [IgnoreBrowser(Browser.IPhone, "Does not support contentEditable")]
-        [IgnoreBrowser(Browser.Opera, "Does not support contentEditable")]
-        [IgnoreBrowser(Browser.Chrome, "ChromeDriver 2 does not support contentEditable")]
-        [IgnoreBrowser(Browser.WindowsPhone, "Cannot type on contentEditable with synthetic events")]
-        public void NonPrintableCharactersShouldWorkWithContentEditableOrDesignModeSet()
-        {
-            if (TestUtilities.IsMarionette(driver))
-            {
-                Assert.Ignore("Marionette does not ContentEditable.");
-            }
-
-            driver.Url = richTextPage;
-
-            // not tested on mac
-            // FIXME: macs don't have HOME keys, would PGUP work?
-            if (System.Environment.OSVersion.Platform == PlatformID.MacOSX)
-            {
-                return;
-            }
-
-            driver.SwitchTo().Frame("editFrame");
-            IWebElement element = driver.SwitchTo().ActiveElement();
-
-            //Chords
-            element.SendKeys("Dishy" + Keys.Backspace + Keys.Left + Keys.Left);
-            element.SendKeys(Keys.Left + Keys.Left + "F" + Keys.Delete + Keys.End + "ee!");
-
-            Assert.AreEqual(element.Text, "Fishee!");
         }
 
         [Test]
@@ -731,70 +590,13 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [IgnoreBrowser(Browser.HtmlUnit, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.Safari, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.PhantomJS, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.Android, "Does not support contentEditable")]
-        [IgnoreBrowser(Browser.IPhone, "Does not support contentEditable")]
-        [IgnoreBrowser(Browser.Opera, "Does not support contentEditable")]
-        [IgnoreBrowser(Browser.Chrome, "ChromeDriver2 does not support contentEditable yet")]
-        [IgnoreBrowser(Browser.WindowsPhone, "Cannot type on contentEditable with synthetic events")]
-        public void ShouldBeAbleToTypeIntoEmptyContentEditableElement()
+        public void ShouldThrowIllegalArgumentException()
         {
-            if (TestUtilities.IsMarionette(driver))
-            {
-                Assert.Ignore("Marionette does not ContentEditable.");
-            }
-
-            driver.Url = readOnlyPage;
-            IWebElement editable = driver.FindElement(By.Id("content-editable"));
-
-            editable.Clear();
-            editable.SendKeys("cheese"); // requires focus on OS X
-
-            Assert.AreEqual("cheese", editable.Text);
+            driver.Url = formsPage;
+            IWebElement email = driver.FindElement(By.Id("age"));
+            Assert.That(() => email.SendKeys(null), Throws.InstanceOf<ArgumentNullException>());
         }
 
-        [IgnoreBrowser(Browser.Chrome, "ChromeDriver2 does not support contentEditable yet")]
-        [IgnoreBrowser(Browser.IE, "IE places cursor at beginning of content")]
-        [IgnoreBrowser(Browser.Safari, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.HtmlUnit, "Cannot type on contentEditable with synthetic events")]
-        [Test]
-        public void ShouldBeAbleToTypeIntoContentEditableElementWithExistingValue()
-        {
-            if (TestUtilities.IsMarionette(driver))
-            {
-                Assert.Ignore("Marionette does not ContentEditable.");
-            }
-
-            driver.Url = readOnlyPage;
-            IWebElement editable = driver.FindElement(By.Id("content-editable"));
-
-            string initialText = editable.Text;
-            editable.SendKeys(", edited");
-
-            Assert.AreEqual(initialText + ", edited", editable.Text);
-        }
-
-        [IgnoreBrowser(Browser.Safari, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.HtmlUnit, "Cannot type on contentEditable with synthetic events")]
-        [IgnoreBrowser(Browser.IE, "Untested browser")]
-        [NeedsFreshDriver(IsCreatedAfterTest = true)]
-        [Test]
-        public void ShouldBeAbleToTypeIntoTinyMCE()
-        {
-            driver.Url = EnvironmentManager.Instance.UrlBuilder.WhereIs("tinymce.html");
-            driver.SwitchTo().Frame("mce_0_ifr");
-
-            IWebElement editable = driver.FindElement(By.Id("tinymce"));
-
-            editable.Clear();
-            editable.SendKeys("cheese"); // requires focus on OS X
-
-            Assert.AreEqual("cheese", editable.Text);
-        }
-
-        [IgnoreBrowser(Browser.Safari, "Untested browser")]
         [Test]
         public void CanSafelyTypeOnElementThatIsRemovedFromTheDomOnKeyPress()
         {
@@ -819,7 +621,6 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [IgnoreBrowser(Browser.Chrome, "Not implemented")]
         public void CanClearNumberInputAfterTypingInvalidInput()
         {
             driver.Url = formsPage;
@@ -830,10 +631,111 @@ namespace OpenQA.Selenium
             Assert.AreEqual("3", input.GetAttribute("value"));
         }
 
+        //------------------------------------------------------------------
+        // Tests below here are not included in the Java test suite
+        //------------------------------------------------------------------
+        [Test]
+        [IgnoreBrowser(Browser.Firefox, "Browser does not automatically focus body element in frame")]
+        public void TypingIntoAnIFrameWithContentEditableOrDesignModeSet()
+        {
+            driver.Url = richTextPage;
+
+            driver.SwitchTo().Frame("editFrame");
+            IWebElement element = driver.SwitchTo().ActiveElement();
+            element.SendKeys("Fishy");
+
+            driver.SwitchTo().DefaultContent();
+            IWebElement trusted = driver.FindElement(By.Id("istrusted"));
+            IWebElement id = driver.FindElement(By.Id("tagId"));
+
+            Assert.That(trusted.Text, Is.EqualTo("[true]").Or.EqualTo("[n/a]").Or.EqualTo("[]"));
+            Assert.That(id.Text, Is.EqualTo("[frameHtml]").Or.EqualTo("[theBody]"));
+        }
+
+        [Test]
+        [IgnoreBrowser(Browser.Firefox, "Browser does not automatically focus body element in frame")]
+        public void NonPrintableCharactersShouldWorkWithContentEditableOrDesignModeSet()
+        {
+            driver.Url = richTextPage;
+
+            driver.SwitchTo().Frame("editFrame");
+            IWebElement element = driver.SwitchTo().ActiveElement();
+
+            //Chords
+            element.SendKeys("Dishy" + Keys.Backspace + Keys.Left + Keys.Left);
+            element.SendKeys(Keys.Left + Keys.Left + "F" + Keys.Delete + EndKey() + "ee!");
+
+            Assert.AreEqual(element.Text, "Fishee!");
+        }
+
+        [Test]
+        public void ShouldBeAbleToTypeIntoEmptyContentEditableElement()
+        {
+            driver.Url = readOnlyPage;
+            IWebElement editable = driver.FindElement(By.Id("content-editable"));
+
+            editable.Clear();
+            editable.SendKeys("cheese"); // requires focus on OS X
+
+            Assert.AreEqual("cheese", editable.Text);
+        }
+
+        [Test]
+        // [IgnoreBrowser(Browser.Chrome, "Driver prepends text in contentEditable")]
+        // [IgnoreBrowser(Browser.Edge, "Driver prepends text in contentEditable")]
+        [IgnoreBrowser(Browser.Firefox, "https://github.com/mozilla/geckodriver/issues/2015")]
+        public void ShouldBeAbleToTypeIntoContentEditableElementWithExistingValue()
+        {
+            driver.Url = readOnlyPage;
+            IWebElement editable = driver.FindElement(By.Id("content-editable"));
+
+            string initialText = editable.Text;
+            editable.SendKeys(", edited");
+
+            Assert.AreEqual(initialText + ", edited", editable.Text);
+        }
+
+        [Test]
+        [NeedsFreshDriver(IsCreatedAfterTest = true)]
+        public void ShouldBeAbleToTypeIntoTinyMCE()
+        {
+            driver.Url = EnvironmentManager.Instance.UrlBuilder.WhereIs("tinymce.html");
+            driver.SwitchTo().Frame("mce_0_ifr");
+
+            IWebElement editable = driver.FindElement(By.Id("tinymce"));
+
+            editable.Clear();
+            editable.SendKeys("cheese"); // requires focus on OS X
+
+            Assert.AreEqual("cheese", editable.Text);
+        }
+
         private string GetValueText(IWebElement el)
         {
             // Standardize on \n and strip any trailing whitespace.
             return el.GetAttribute("value").Replace("\r\n", "\n").Trim();
+        }
+
+        private void CheckRecordedKeySequence(IWebElement element, int expectedKeyCode)
+        {
+            string withKeyPress = string.Format("down: {0} press: {0} up: {0}", expectedKeyCode);
+            string withoutKeyPress = string.Format("down: {0} up: {0}", expectedKeyCode);
+            Assert.That(element.Text.Trim(), Is.AnyOf(withKeyPress, withoutKeyPress));
+        }
+
+        private string PrimaryModifier()
+        {
+            return (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) ? Keys.Command : Keys.Control;
+        }
+
+        private string HomeKey()
+        {
+            return (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) ? Keys.Up : Keys.Home;
+        }
+
+        private string EndKey()
+        {
+            return (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) ? Keys.Down : Keys.End;
         }
     }
 }

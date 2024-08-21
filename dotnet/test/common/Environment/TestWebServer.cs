@@ -1,7 +1,11 @@
-﻿using System;
+using Bazel;
+using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
-using System.Diagnostics;
+using System.Net.Http;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace OpenQA.Selenium.Environment
 {
@@ -9,89 +13,174 @@ namespace OpenQA.Selenium.Environment
     {
         private Process webserverProcess;
 
-        private string standaloneTestJar = @"buck-out/gen/java/client/test/org/openqa/selenium/environment/webserver.jar";
-        private string webserverClassName = "org.openqa.selenium.environment.webserver.JettyAppServer";
+        private string standaloneTestJar = @"_main/java/test/org/openqa/selenium/environment/appserver";
         private string projectRootPath;
+        private bool captureWebServerOutput;
+        private bool hideCommandPrompt;
+        private string javaHomeDirectory;
+        private string port;
 
-        public TestWebServer(string projectRoot)
+        private StringBuilder outputData = new StringBuilder();
+
+        public TestWebServer(string projectRoot, TestWebServerConfig config)
         {
-            projectRootPath = projectRoot;
+            this.projectRootPath = projectRoot;
+            this.captureWebServerOutput = config.CaptureConsoleOutput;
+            this.hideCommandPrompt = config.HideCommandPromptWindow;
+            this.javaHomeDirectory = config.JavaHomeDirectory;
+            this.port = config.Port;
         }
 
         public void Start()
         {
             if (webserverProcess == null || webserverProcess.HasExited)
             {
-                standaloneTestJar = standaloneTestJar.Replace('/', Path.DirectorySeparatorChar);
-                if (!File.Exists(Path.Combine(projectRootPath, standaloneTestJar)))
+                try
+                {
+                    var runfiles = Runfiles.Create();
+                    standaloneTestJar = runfiles.Rlocation(standaloneTestJar);
+                }
+                catch (FileNotFoundException)
+                {
+                    var baseDirectory = AppContext.BaseDirectory;
+                    standaloneTestJar = Path.Combine(baseDirectory, "../../../../../../bazel-bin/java/test/org/openqa/selenium/environment/appserver");
+                }
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    standaloneTestJar += ".exe";
+                }
+
+                Console.Write("Standalone jar is " + standaloneTestJar);
+
+                if (!File.Exists(standaloneTestJar))
                 {
                     throw new FileNotFoundException(
                         string.Format(
-                            "Test webserver jar at {0} didn't exist - please build it using something like {1}",
+                            "Test webserver jar at {0} didn't exist. Project root is {2}. Please build it using something like {1}.",
                             standaloneTestJar,
-                            "go //java/client/test/org/openqa/selenium/environment:webserver"));
+                            "bazel build //java/test/org/openqa/selenium/environment:appserver_deploy.jar",
+                            projectRootPath));
                 }
 
-                string javaExecutableName = "java";
-                if (System.Environment.OSVersion.Platform == PlatformID.Win32NT || System.Environment.OSVersion.Platform == PlatformID.Win32Windows)
-                {
-                    javaExecutableName = javaExecutableName + ".exe";
-                }
+                //List<string> javaSystemProperties = new List<string>();
+
+                StringBuilder processArgsBuilder = new StringBuilder();
+                // foreach (string systemProperty in javaSystemProperties)
+                // {
+                //     if (processArgsBuilder.Length > 0)
+                //     {
+                //         processArgsBuilder.Append(" ");
+                //     }
+                //
+                //     processArgsBuilder.AppendFormat("-D{0}", systemProperty);
+                // }
+                //
+                // if (processArgsBuilder.Length > 0)
+                // {
+                //     processArgsBuilder.Append(" ");
+                // }
+                //
+                // processArgsBuilder.AppendFormat("-jar {0}", standaloneTestJar);
+                processArgsBuilder.AppendFormat(" {0}", this.port);
+
+                Console.Write(processArgsBuilder.ToString());
 
                 webserverProcess = new Process();
-                webserverProcess.StartInfo.FileName = javaExecutableName;
-                webserverProcess.StartInfo.Arguments = "-cp " + standaloneTestJar + " " + webserverClassName;
+                webserverProcess.StartInfo.FileName = standaloneTestJar;
+                // if (!string.IsNullOrEmpty(javaExecutablePath))
+                // {
+                //     webserverProcess.StartInfo.FileName = Path.Combine(javaExecutablePath, javaExecutableName);
+                // }
+                // else
+                // {
+                //     webserverProcess.StartInfo.FileName = javaExecutableName;
+                // }
+
+                webserverProcess.StartInfo.Arguments = processArgsBuilder.ToString();
                 webserverProcess.StartInfo.WorkingDirectory = projectRootPath;
-                webserverProcess.Start();
-                DateTime timeout = DateTime.Now.Add(TimeSpan.FromSeconds(30));
-                bool isRunning = false;
-                while (!isRunning && DateTime.Now < timeout)
+                webserverProcess.StartInfo.UseShellExecute = !(hideCommandPrompt || captureWebServerOutput);
+                webserverProcess.StartInfo.CreateNoWindow = hideCommandPrompt;
+                if (!string.IsNullOrEmpty(this.javaHomeDirectory))
                 {
-                    // Poll until the webserver is correctly serving pages.
-                    HttpWebRequest request = WebRequest.Create(EnvironmentManager.Instance.UrlBuilder.LocalWhereIs("simpleTest.html")) as HttpWebRequest;
+                    webserverProcess.StartInfo.EnvironmentVariables["JAVA_HOME"] = this.javaHomeDirectory;
+                }
+
+                captureWebServerOutput = true;
+
+                if (captureWebServerOutput)
+                {
+                    webserverProcess.StartInfo.RedirectStandardOutput = true;
+                    webserverProcess.StartInfo.RedirectStandardError = true;
+                }
+
+                webserverProcess.Start();
+
+                TimeSpan timeout = TimeSpan.FromSeconds(30);
+                DateTime endTime = DateTime.Now.Add(TimeSpan.FromSeconds(30));
+                bool isRunning = false;
+
+                // Poll until the webserver is correctly serving pages.
+                using var httpClient = new HttpClient();
+
+                while (!isRunning && DateTime.Now < endTime)
+                {
                     try
                     {
-                        HttpWebResponse response = request.GetResponse() as HttpWebResponse;
+                        using var response = httpClient.GetAsync(EnvironmentManager.Instance.UrlBuilder.LocalWhereIs("simpleTest.html")).GetAwaiter().GetResult();
+
                         if (response.StatusCode == HttpStatusCode.OK)
                         {
                             isRunning = true;
                         }
                     }
-                    catch (WebException)
+                    catch (Exception ex) when (ex is HttpRequestException || ex is TimeoutException)
                     {
                     }
                 }
 
                 if (!isRunning)
                 {
-                    throw new TimeoutException("Could not start the test web server in 15 seconds");
+                    string output = "'CaptureWebServerOutput' parameter is false. Web server output not captured";
+                    string error = "'CaptureWebServerOutput' parameter is false. Web server output not being captured.";
+                    if (captureWebServerOutput)
+                    {
+                        error = webserverProcess.StandardError.ReadToEnd();
+                        output = webserverProcess.StandardOutput.ReadToEnd();
+                    }
+
+                    string errorMessage = string.Format("Could not start the test web server in {0} seconds.\nWorking directory: {1}\nProcess Args: {2}\nstdout: {3}\nstderr: {4}", timeout.TotalSeconds, projectRootPath, processArgsBuilder, output, error);
+                    throw new TimeoutException(errorMessage);
                 }
             }
         }
 
         public void Stop()
         {
-            HttpWebRequest request = WebRequest.Create(EnvironmentManager.Instance.UrlBuilder.LocalWhereIs("quitquitquit")) as HttpWebRequest;
-            try
-            {
-                request.GetResponse();
-            }
-            catch (WebException)
-            {
-            }
-
             if (webserverProcess != null)
             {
+                using (var httpClient = new HttpClient())
+                {
+                    try
+                    {
+                        using (httpClient.GetAsync(EnvironmentManager.Instance.UrlBuilder.LocalWhereIs("quitquitquit")).GetAwaiter().GetResult())
+                        {
+
+                        }
+                    }
+                    catch (HttpRequestException)
+                    {
+
+                    }
+                }
+
                 try
                 {
                     webserverProcess.WaitForExit(10000);
                     if (!webserverProcess.HasExited)
                     {
-                        webserverProcess.Kill();
+                        webserverProcess.Kill(entireProcessTree: true);
                     }
-                }
-                catch (Exception)
-                {
                 }
                 finally
                 {

@@ -1,4 +1,8 @@
-﻿using NUnit.Framework;
+using NUnit.Framework;
+using OpenQA.Selenium.Environment;
+using System;
+using System.Drawing;
+using System.Runtime.InteropServices;
 
 namespace OpenQA.Selenium.Interactions
 {
@@ -8,25 +12,46 @@ namespace OpenQA.Selenium.Interactions
         [SetUp]
         public void Setup()
         {
-            new Actions(driver).SendKeys(Keys.Null).Perform();
+            //new Actions(driver).SendKeys(Keys.Null).Perform();
+            IActionExecutor actionExecutor = driver as IActionExecutor;
+            if (actionExecutor != null)
+            {
+                actionExecutor.ResetInputState();
+            }
         }
 
         [TearDown]
         public void ReleaseModifierKeys()
         {
-            new Actions(driver).SendKeys(Keys.Null).Perform();
+            //new Actions(driver).SendKeys(Keys.Null).Perform();
+            IActionExecutor actionExecutor = driver as IActionExecutor;
+            if (actionExecutor != null)
+            {
+                actionExecutor.ResetInputState();
+            }
         }
 
         [Test]
-        [IgnoreBrowser(Browser.IPhone, "API not implemented in driver")]
+        public void ShouldSetActiveKeyboard()
+        {
+            Actions actionProvider = new Actions(driver);
+            actionProvider.SetActiveKeyboard("test keyboard");
+
+            KeyInputDevice device = actionProvider.GetActiveKeyboard();
+
+            Assert.AreEqual("test keyboard", device.DeviceName);
+        }
+
+        [Test]
         [IgnoreBrowser(Browser.Remote, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Android, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Safari, "API not implemented in driver")]
         public void ShouldAllowBasicKeyboardInput()
         {
             driver.Url = javascriptPage;
 
             IWebElement keyReporter = driver.FindElement(By.Id("keyReporter"));
+
+            // Scroll the element into view before attempting any actions on it.
+            ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView();", keyReporter);
 
             Actions actionProvider = new Actions(driver);
             IAction sendLowercase = actionProvider.SendKeys(keyReporter, "abc def").Build();
@@ -38,16 +63,15 @@ namespace OpenQA.Selenium.Interactions
         }
 
         [Test]
-        [IgnoreBrowser(Browser.Firefox, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.IPhone, "API not implemented in driver")]
         [IgnoreBrowser(Browser.Remote, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Android, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Safari, "API not implemented in driver")]
         public void ShouldAllowSendingKeyDownOnly()
         {
             driver.Url = javascriptPage;
 
             IWebElement keysEventInput = driver.FindElement(By.Id("theworks"));
+
+            // Scroll the element into view before attempting any actions on it.
+            ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView();", keysEventInput);
 
             Actions actionProvider = new Actions(driver);
 
@@ -60,20 +84,18 @@ namespace OpenQA.Selenium.Interactions
             IAction releaseShift = actionProvider.KeyDown(keysEventInput, Keys.Shift).Build();
             releaseShift.Perform();
 
-            Assert.IsTrue(logText.EndsWith("keydown"), "Key down event not isolated. Log text should end with 'keydown', got: " + logText);
+            Assert.That(logText, Does.EndWith("keydown"));
         }
 
         [Test]
-        [IgnoreBrowser(Browser.Firefox, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Chrome, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.IPhone, "API not implemented in driver")]
         [IgnoreBrowser(Browser.Remote, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Android, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Safari, "API not implemented in driver")]
         public void ShouldAllowSendingKeyUp()
         {
             driver.Url = javascriptPage;
             IWebElement keysEventInput = driver.FindElement(By.Id("theworks"));
+
+            // Scroll the element into view before attempting any actions on it.
+            ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView();", keysEventInput);
 
             IAction pressShift = new Actions(driver).KeyDown(keysEventInput, Keys.Shift).Build();
             pressShift.Perform();
@@ -81,23 +103,19 @@ namespace OpenQA.Selenium.Interactions
             IWebElement keyLoggingElement = driver.FindElement(By.Id("result"));
 
             string eventsText = keyLoggingElement.Text;
-            Assert.IsTrue(keyLoggingElement.Text.EndsWith("keydown"), "Key down should be isolated for this test to be meaningful. Event text should end with 'keydown', got events: " + eventsText);
+            Assert.That(keyLoggingElement.Text, Does.EndWith("keydown"));
 
             IAction releaseShift = new Actions(driver).KeyUp(keysEventInput, Keys.Shift).Build();
 
             releaseShift.Perform();
 
             eventsText = keyLoggingElement.Text;
-            Assert.IsTrue(keyLoggingElement.Text.EndsWith("keyup"), "Key up event not isolated. Event text should end with 'keyup', got: " + eventsText);
+            Assert.That(keyLoggingElement.Text, Does.EndWith("keyup"));
         }
 
         [Test]
-        [IgnoreBrowser(Browser.Firefox, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Chrome, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.IPhone, "API not implemented in driver")]
+        [IgnoreBrowser(Browser.IE, "Keypress and Keyup are getting switched")]
         [IgnoreBrowser(Browser.Remote, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Android, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Safari, "API not implemented in driver")]
         public void ShouldAllowSendingKeysWithShiftPressed()
         {
             driver.Url = javascriptPage;
@@ -115,16 +133,13 @@ namespace OpenQA.Selenium.Interactions
             IAction releaseShift = new Actions(driver).KeyUp(Keys.Shift).Build();
             releaseShift.Perform();
 
-            AssertThatFormEventsFiredAreExactly("focus keydown keydown keypress keyup keydown keypress keyup keyup"); 
+            AssertThatFormEventsFiredAreExactly("focus keydown keydown keypress keyup keydown keypress keyup keyup");
 
             Assert.AreEqual("AB", keysEventInput.GetAttribute("value"));
         }
 
         [Test]
-        [IgnoreBrowser(Browser.IPhone, "API not implemented in driver")]
         [IgnoreBrowser(Browser.Remote, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Android, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Safari, "API not implemented in driver")]
         public void ShouldAllowSendingKeysToActiveElement()
         {
             driver.Url = bodyTypingPage;
@@ -135,28 +150,171 @@ namespace OpenQA.Selenium.Interactions
 
             AssertThatBodyEventsFiredAreExactly("keypress keypress");
             IWebElement formLoggingElement = driver.FindElement(By.Id("result"));
-            AssertThatFormEventsFiredAreExactly(string.Empty); 
+            AssertThatFormEventsFiredAreExactly(string.Empty);
         }
 
         [Test]
-        [IgnoreBrowser(Browser.IPhone, "API not implemented in driver")]
+        public void ThrowsIllegalArgumentExceptionWithNullKeys()
+        {
+            driver.Url = javascriptPage;
+            Assert.That(() => driver.FindElement(By.Id("keyReporter")).SendKeys(null), Throws.InstanceOf<ArgumentNullException>());
+        }
+
+        [Test]
+        public void CanGenerateKeyboardShortcuts()
+        {
+            driver.Url = EnvironmentManager.Instance.UrlBuilder.WhereIs("keyboard_shortcut.html");
+
+            IWebElement body = driver.FindElement(By.XPath("//body"));
+            AssertBackgroundColor(body, Color.White);
+
+            new Actions(driver).KeyDown(Keys.Shift).SendKeys("1").KeyUp(Keys.Shift).Perform();
+            AssertBackgroundColor(body, Color.Green);
+
+            new Actions(driver).KeyDown(Keys.Alt).SendKeys("1").KeyUp(Keys.Alt).Perform();
+            AssertBackgroundColor(body, Color.LightBlue);
+
+            new Actions(driver)
+                .KeyDown(Keys.Shift).KeyDown(Keys.Alt)
+                .SendKeys("1")
+                .KeyUp(Keys.Shift).KeyUp(Keys.Alt)
+                .Perform();
+            AssertBackgroundColor(body, Color.Silver);
+        }
+
+        [Test]
+        public void SelectionSelectBySymbol()
+        {
+            driver.Url = EnvironmentManager.Instance.UrlBuilder.WhereIs("single_text_input.html");
+
+            IWebElement input = driver.FindElement(By.Id("textInput"));
+
+            new Actions(driver).Click(input).SendKeys("abc def").Perform();
+
+            WaitFor(() => input.GetAttribute("value") == "abc def", "did not send initial keys");
+
+            if (!TestUtilities.IsInternetExplorer(driver))
+            {
+                // When using drivers other than the IE, the click in
+                // the below action sequence may fall inside the double-
+                // click threshold (the IE driver has guards to prevent
+                // inadvertent double-clicks with multiple actions calls),
+                // so we call the "release actions" end point before
+                // doing the second action.
+                IActionExecutor executor = driver as IActionExecutor;
+                if (executor != null)
+                {
+                    executor.ResetInputState();
+                }
+            }
+
+            new Actions(driver).Click(input)
+                .KeyDown(Keys.Shift)
+                .SendKeys(Keys.Left)
+                .SendKeys(Keys.Left)
+                .KeyUp(Keys.Shift)
+                .SendKeys(Keys.Delete)
+                .Perform();
+
+            Assert.That(input.GetAttribute("value"), Is.EqualTo("abc d"));
+        }
+
+        [Test]
+        public void SelectionSelectByWord()
+        {
+            string controlModifier = Keys.Control;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                controlModifier = Keys.Alt;
+            }
+
+            driver.Url = EnvironmentManager.Instance.UrlBuilder.WhereIs("single_text_input.html");
+
+            IWebElement input = driver.FindElement(By.Id("textInput"));
+
+            new Actions(driver).Click(input).SendKeys("abc def").Perform();
+
+            WaitFor(() => input.GetAttribute("value") == "abc def", "did not send initial keys");
+
+            if (!TestUtilities.IsInternetExplorer(driver))
+            {
+                // When using drivers other than the IE, the click in
+                // the below action sequence may fall inside the double-
+                // click threshold (the IE driver has guards to prevent
+                // inadvertent double-clicks with multiple actions calls),
+                // so we call the "release actions" end point before
+                // doing the second action.
+                IActionExecutor executor = driver as IActionExecutor;
+                if (executor != null)
+                {
+                    executor.ResetInputState();
+                }
+            }
+
+            new Actions(driver).Click(input)
+                .KeyDown(Keys.Shift)
+                .KeyDown(controlModifier)
+                .SendKeys(Keys.Left)
+                .KeyUp(controlModifier)
+                .KeyUp(Keys.Shift)
+                .SendKeys(Keys.Delete)
+                .Perform();
+
+            WaitFor(() => input.GetAttribute("value") == "abc ", "did not send editing keys");
+        }
+
+        [Test]
+        public void SelectionSelectAll()
+        {
+            string controlModifier = Keys.Control;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                controlModifier = Keys.Command;
+            }
+
+            driver.Url = EnvironmentManager.Instance.UrlBuilder.WhereIs("single_text_input.html");
+
+            IWebElement input = driver.FindElement(By.Id("textInput"));
+
+            new Actions(driver).Click(input).SendKeys("abc def").Perform();
+
+            WaitFor(() => input.GetAttribute("value") == "abc def", "did not send initial keys");
+
+            new Actions(driver).Click(input)
+                .KeyDown(controlModifier)
+                .SendKeys("a")
+                .KeyUp(controlModifier)
+                .SendKeys(Keys.Delete)
+                .Perform();
+
+            Assert.That(input.GetAttribute("value"), Is.EqualTo(string.Empty));
+        }
+
+        //------------------------------------------------------------------
+        // Tests below here are not included in the Java test suite
+        //------------------------------------------------------------------
+        [Test]
         [IgnoreBrowser(Browser.Remote, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Android, "API not implemented in driver")]
-        [IgnoreBrowser(Browser.Safari, "API not implemented in driver")]
-        public void ShouldAllowBasicKeyboardInputOnActiveElement()
+        public void ShouldAllowSendingKeysWithLeftShiftPressed()
         {
             driver.Url = javascriptPage;
 
-            IWebElement keyReporter = driver.FindElement(By.Id("keyReporter"));
+            IWebElement keysEventInput = driver.FindElement(By.Id("theworks"));
 
-            keyReporter.Click();
+            keysEventInput.Click();
 
-            Actions actionProvider = new Actions(driver);
-            IAction sendLowercase = actionProvider.SendKeys("abc def").Build();
+            IAction pressShift = new Actions(driver).KeyDown(Keys.LeftShift).Build();
+            pressShift.Perform();
 
+            IAction sendLowercase = new Actions(driver).SendKeys("ab").Build();
             sendLowercase.Perform();
 
-            Assert.AreEqual("abc def", keyReporter.GetAttribute("value"));
+            IAction releaseShift = new Actions(driver).KeyUp(Keys.LeftShift).Build();
+            releaseShift.Perform();
+
+            AssertThatFormEventsFiredAreExactly("focus keydown keydown keypress keyup keydown keypress keyup keyup");
+
+            Assert.AreEqual("AB", keysEventInput.GetAttribute("value"));
         }
 
         private void AssertThatFormEventsFiredAreExactly(string message, string expected)
@@ -172,6 +330,27 @@ namespace OpenQA.Selenium.Interactions
         private void AssertThatBodyEventsFiredAreExactly(string expected)
         {
             Assert.AreEqual(expected, driver.FindElement(By.Id("body_result")).Text.Trim());
+        }
+
+        private Func<bool> BackgroundColorToChangeFrom(IWebElement element, Color currentColor)
+        {
+            return () =>
+            {
+                string hexValue = string.Format("#{0:x2}{1:x2}{2:x2}", currentColor.R, currentColor.G, currentColor.B);
+                string rgbValue = string.Format("rgb({0}, {1}, {2})", currentColor.R, currentColor.G, currentColor.B);
+                string rgbaValue = string.Format("rgba({0}, {1}, {2}, 1)", currentColor.R, currentColor.G, currentColor.B);
+                string actual = element.GetCssValue("background-color");
+                return actual != hexValue && actual != rgbValue && actual != rgbaValue;
+            };
+        }
+
+        private void AssertBackgroundColor(IWebElement el, Color expected)
+        {
+            string hexValue = string.Format("#{0:x2}{1:x2}{2:x2}", expected.R, expected.G, expected.B);
+            string rgbValue = string.Format("rgb({0}, {1}, {2})", expected.R, expected.G, expected.B);
+            string rgbaValue = string.Format("rgba({0}, {1}, {2}, 1)", expected.R, expected.G, expected.B);
+            string actual = el.GetCssValue("background-color");
+            Assert.That(actual, Is.EqualTo(hexValue).Or.EqualTo(rgbValue).Or.EqualTo(rgbaValue));
         }
     }
 }

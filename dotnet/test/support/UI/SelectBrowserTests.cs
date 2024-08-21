@@ -1,7 +1,7 @@
-using System;
-using System.Collections.Generic;
 using NUnit.Framework;
 using OpenQA.Selenium.Environment;
+using System;
+using System.Collections.Generic;
 
 namespace OpenQA.Selenium.Support.UI
 {
@@ -141,7 +141,7 @@ namespace OpenQA.Selenium.Support.UI
 
         // [Test]
         // [ExpectedException(typeof(NoSuchElementException))]
-        // The .NET bindings do not have a "FirstSelectedOption" property, 
+        // The .NET bindings do not have a "FirstSelectedOption" property,
         // and no one has asked for it to this point. Given that, this test
         // is not a valid test.
         public void ShouldThrowANoSuchElementExceptionIfNothingIsSelected()
@@ -163,6 +163,25 @@ namespace OpenQA.Selenium.Support.UI
         }
 
         [Test]
+        public void ShouldAllowOptionsToBeSelectedByPartialText()
+        {
+            IWebElement element = driver.FindElement(By.Name("select_empty_multiple"));
+            SelectElement elementWrapper = new SelectElement(element);
+            elementWrapper.SelectByText("4", true);
+            IWebElement firstSelected = elementWrapper.AllSelectedOptions[0];
+            Assert.AreEqual("select_4", firstSelected.Text);
+        }
+
+        [Test]
+        public void ShouldThrowExceptionOnSelectByTextExactMatchIfOptionDoesNotExist()
+        {
+            IWebElement element = driver.FindElement(By.Name("select_empty_multiple"));
+            SelectElement elementWrapper = new SelectElement(element);
+            Assert.Throws<NoSuchElementException>(() => elementWrapper.SelectByText("4"));
+        }
+
+        [Test]
+        [IgnoreBrowser(Browser.Firefox, "Not working in all bindings.")]
         public void ShouldNotAllowInvisibleOptionsToBeSelectedByVisibleText()
         {
             IWebElement element = driver.FindElement(By.Name("invisi_select"));
@@ -176,6 +195,14 @@ namespace OpenQA.Selenium.Support.UI
             IWebElement element = driver.FindElement(By.Name("select_empty_multiple"));
             SelectElement elementWrapper = new SelectElement(element);
             Assert.Throws<NoSuchElementException>(() => elementWrapper.SelectByText("not there"));
+        }
+
+        [Test]
+        public void ShouldThrowExceptionOnSelectByVisibleTextIfOptionDisabled()
+        {
+            IWebElement element = driver.FindElement(By.Name("single_disabled"));
+            SelectElement elementWrapper = new SelectElement(element);
+            Assert.Throws<InvalidOperationException>(() => elementWrapper.SelectByText("Disabled"));
         }
 
         [Test]
@@ -197,6 +224,14 @@ namespace OpenQA.Selenium.Support.UI
         }
 
         [Test]
+        public void ShouldThrowExceptionOnSelectByIndexIfOptionDisabled()
+        {
+            IWebElement element = driver.FindElement(By.Name("single_disabled"));
+            SelectElement elementWrapper = new SelectElement(element);
+            Assert.Throws<InvalidOperationException>(() => elementWrapper.SelectByIndex(1));
+        }
+
+        [Test]
         public void ShouldAllowOptionsToBeSelectedByReturnedValue()
         {
             IWebElement element = driver.FindElement(By.Name("select_empty_multiple"));
@@ -212,6 +247,14 @@ namespace OpenQA.Selenium.Support.UI
             IWebElement element = driver.FindElement(By.Name("select_empty_multiple"));
             SelectElement elementWrapper = new SelectElement(element);
             Assert.Throws<NoSuchElementException>(() => elementWrapper.SelectByValue("not there"));
+        }
+
+        [Test]
+        public void ShouldThrowExceptionOnSelectByReturnedValueIfOptionDisabled()
+        {
+            IWebElement element = driver.FindElement(By.Name("single_disabled"));
+            SelectElement elementWrapper = new SelectElement(element);
+            Assert.Throws<InvalidOperationException>(() => elementWrapper.SelectByValue("disabled"));
         }
 
         [Test]
@@ -245,7 +288,7 @@ namespace OpenQA.Selenium.Support.UI
         }
 
         [Test]
-
+        [IgnoreBrowser(Browser.Firefox, "Not working in all bindings.")]
         public void ShouldNotAllowUserToDeselectOptionsByInvisibleText()
         {
             IWebElement element = driver.FindElement(By.Name("invisi_select"));

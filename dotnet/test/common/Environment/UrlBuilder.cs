@@ -1,5 +1,10 @@
-using System.Net.Sockets;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Text;
 
 namespace OpenQA.Selenium.Environment
 {
@@ -27,14 +32,13 @@ namespace OpenQA.Selenium.Environment
             get { return path; }
         }
 
-        public UrlBuilder()
+        public UrlBuilder(WebsiteConfig config)
         {
-            protocol = EnvironmentManager.GetSettingValue("Protocol");
-            hostName = EnvironmentManager.GetSettingValue("HostName");
-            port = EnvironmentManager.GetSettingValue("Port");
-            securePort = EnvironmentManager.GetSettingValue("SecurePort");
-            // TODO(andre.nogueira): Remove trailing / from folder
-            path = EnvironmentManager.GetSettingValue("Folder");
+            protocol = config.Protocol;
+            hostName = config.HostName;
+            port = config.Port;
+            securePort = config.SecurePort;
+            path = config.Folder;
             //Use the first IPv4 address that we find
             IPAddress ipAddress = IPAddress.Parse("127.0.0.1");
             foreach (IPAddress ip in Dns.GetHostEntry(hostName).AddressList)
@@ -72,12 +76,64 @@ namespace OpenQA.Selenium.Environment
             return location;
         }
 
+        public string WhereIsViaNonLoopbackAddress(string page)
+        {
+            string hostNameAsIPAddress = "127.0.0.1";
+            IPAddress[] addresses = Dns.GetHostAddresses(Dns.GetHostName());
+            foreach (IPAddress address in addresses)
+            {
+                if (address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(address))
+                {
+                    hostNameAsIPAddress = address.ToString();
+                    break;
+                }
+            }
+
+            string location = string.Empty;
+            location = "http://" + hostNameAsIPAddress + ":" + port + "/" + path + "/" + page;
+
+            return location;
+        }
+
         public string WhereIsSecure(string page)
         {
             string location = string.Empty;
             location = "https://" + hostName + ":" + securePort + "/" + path + "/" + page;
 
             return location;
+        }
+        public string CreateInlinePage(InlinePage page)
+        {
+            Uri createPageUri = new Uri(new Uri(WhereIs(string.Empty)), "createPage");
+
+            Dictionary<string, object> payloadDictionary = new Dictionary<string, object>
+            {
+                ["content"] = page.ToString()
+            };
+
+            string commandPayload = JsonConvert.SerializeObject(payloadDictionary);
+
+            using var httpClient = new HttpClient();
+
+            var postHttpContent = new StringContent(commandPayload, Encoding.UTF8, "application/json");
+
+            using var response = httpClient.PostAsync(createPageUri, postHttpContent).GetAwaiter().GetResult();
+
+            var responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+            // The response string from the Java remote server has trailing null
+            // characters. This is due to the fix for issue 288.
+            if (responseString.IndexOf('\0') >= 0)
+            {
+                responseString = responseString.Substring(0, responseString.IndexOf('\0'));
+            }
+
+            if (responseString.Contains("localhost"))
+            {
+                responseString = responseString.Replace("localhost", this.hostName);
+            }
+
+            return responseString;
         }
     }
 }

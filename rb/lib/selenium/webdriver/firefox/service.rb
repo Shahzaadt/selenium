@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,46 +20,10 @@
 module Selenium
   module WebDriver
     module Firefox
-      #
-      # @api private
-      #
-
       class Service < WebDriver::Service
         DEFAULT_PORT = 4444
-        @executable = 'geckodriver*'.freeze
-        @missing_text = <<-ERROR.gsub(/\n +| {2,}/, ' ').freeze
-          Unable to find Mozilla geckodriver. Please download the server from
-          https://github.com/mozilla/geckodriver/releases and place it somewhere on your PATH.
-          More info at https://developer.mozilla.org/en-US/docs/Mozilla/QA/Marionette/WebDriver.
-        ERROR
-
-        def stop
-          stop_process
-        end
-
-        private
-
-        def start_process
-          server_command = [@executable_path, "--binary=#{Firefox::Binary.path}", "--port=#{@port}", *@extra_args]
-          @process = ChildProcess.build(*server_command)
-          WebDriver.logger.debug("Executing Process #{server_command}")
-
-          @process.io.stdout = @process.io.stderr = WebDriver.logger.io
-          @process.start
-        end
-
-        def cannot_connect_error_text
-          "unable to connect to Mozilla geckodriver #{@host}:#{@port}"
-        end
-
-        def extract_service_args(driver_opts)
-          driver_args = super
-          driver_args << "--binary=#{driver_opts[:binary]}" if driver_opts.key?(:binary)
-          driver_args << "–-log=#{driver_opts[:log]}" if driver_opts.key?(:log)
-          driver_args << "–-marionette-port=#{driver_opts[:marionette_port]}" if driver_opts.key?(:marionette_port)
-          driver_args << "–-host=#{driver_opts[:host]}" if driver_opts.key?(:host)
-          driver_args
-        end
+        EXECUTABLE = 'geckodriver'
+        SHUTDOWN_SUPPORTED = false
       end # Service
     end # Firefox
   end # WebDriver

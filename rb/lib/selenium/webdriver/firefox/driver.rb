@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,30 +20,49 @@
 module Selenium
   module WebDriver
     module Firefox
-      module Driver
-        class << self
+      #
+      # Driver implementation for Firefox using GeckoDriver.
+      # @api private
+      #
 
-          #
-          # Instantiates correct Firefox driver implementation
-          # @return [Marionette::Driver, Legacy::Driver]
-          #
+      class Driver < WebDriver::Driver
+        EXTENSIONS = [DriverExtensions::HasAddons,
+                      DriverExtensions::FullPageScreenshot,
+                      DriverExtensions::HasContext,
+                      DriverExtensions::HasBiDi,
+                      DriverExtensions::HasDevTools,
+                      DriverExtensions::HasLogEvents,
+                      DriverExtensions::HasNetworkInterception,
+                      DriverExtensions::HasWebStorage,
+                      DriverExtensions::PrintsPage].freeze
 
-          def new(**opts)
-            if marionette?(opts)
-              Firefox::Marionette::Driver.new(opts)
-            else
-              Firefox::Legacy::Driver.new(opts)
-            end
-          end
+        include LocalDriver
 
-          private
-
-          def marionette?(opts)
-            opts.delete(:marionette) != false &&
-              (!opts[:desired_capabilities] || opts[:desired_capabilities][:marionette] != false)
-          end
+        def initialize(options: nil, service: nil, url: nil, **opts)
+          caps, url = initialize_local_driver(options, service, url)
+          super(caps: caps, url: url, **opts)
         end
 
+        def browser
+          :firefox
+        end
+
+        private
+
+        def devtools_url
+          if capabilities['moz:debuggerAddress'].nil?
+            raise(Error::WebDriverError, 'DevTools is not supported by this version of Firefox; use v85 or higher')
+          end
+
+          uri = URI("http://#{capabilities['moz:debuggerAddress']}")
+          response = Net::HTTP.get(uri.hostname, '/json/version', uri.port)
+
+          JSON.parse(response)['webSocketDebuggerUrl']
+        end
+
+        def devtools_version
+          Firefox::DEVTOOLS_VERSION
+        end
       end # Driver
     end # Firefox
   end # WebDriver

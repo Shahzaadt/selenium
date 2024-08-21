@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,20 +17,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require 'selenium/webdriver/ie/driver'
-require 'selenium/webdriver/ie/service'
-
 module Selenium
   module WebDriver
     module IE
-      def self.driver_path=(path)
-        Platform.assert_executable path
-        @driver_path = path
-      end
-
-      def self.driver_path
-        @driver_path ||= nil
-      end
+      autoload :Features, 'selenium/webdriver/ie/features'
+      autoload :Driver,   'selenium/webdriver/ie/driver'
+      autoload :Options,  'selenium/webdriver/ie/options'
+      autoload :Service,  'selenium/webdriver/ie/service'
     end # IE
   end # WebDriver
 end # Selenium

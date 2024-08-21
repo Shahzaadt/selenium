@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,14 +20,17 @@
 module Selenium
   module WebDriver
     module Interactions
-      class NoneInput < InputDevice
-        def type
-          Interactions::NONE
-        end
+      #
+      # Creates actions specific to null input source
+      # This is primarily used for adding pauses
+      #
+      # @api private
+      #
 
-        def encode
-          return nil if no_actions?
-          {type: type, id: name, actions: @actions.map(&:encode)}
+      class NoneInput < InputDevice
+        def initialize(name = nil)
+          super
+          @type = Interactions::NONE
         end
       end # NoneInput
     end # Interactions

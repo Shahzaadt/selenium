@@ -2,18 +2,12 @@ namespace OpenQA.Selenium
 {
     public enum Browser
     {
-        All, 
-        HtmlUnit, 
+        All,
         IE,
         Edge,
-        Firefox, 
-        Safari, 
+        Firefox,
+        Safari,
         Chrome,
-        Opera,
-        Remote, 
-        IPhone,
-        Android,
-        WindowsPhone,
-        PhantomJS
+        Remote,
     }
 }

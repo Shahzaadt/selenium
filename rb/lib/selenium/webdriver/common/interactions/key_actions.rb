@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -22,7 +22,7 @@ module Selenium
     module KeyActions
       #
       # Performs a key press. Does not release the key - subsequent interactions may assume it's kept pressed.
-      # Note that the key is never released implicitly - either W3CActionBuilder#key_up(key) or W3CActionBuilder#release_actions
+      # Note that the key is never released implicitly - either ActionBuilder#key_up(key) or ActionBuilder#release_actions
       # must be called to release the key.
       #
       # @example Press a key
@@ -41,7 +41,7 @@ module Selenium
       #   @param [Element] element An optional element to move to first
       #   @param [Symbol, String] key The key to press
       #   @param [Symbol, String] device Optional name of the KeyInput device to press the key on
-      # @return [W3CActionBuilder] A self reference
+      # @return [ActionBuilder] A self reference
       #
 
       def key_down(*args, device: nil)
@@ -68,7 +68,7 @@ module Selenium
       #   @param [Element] element An optional element to move to first
       #   @param [Symbol, String] key The key to release
       #   @param [Symbol, String] device Optional name of the KeyInput device to release the key on
-      # @return [W3CActionBuilder] A self reference
+      # @return [ActionBuilder] A self reference
       #
 
       def key_up(*args, device: nil)
@@ -98,7 +98,7 @@ module Selenium
       #   @param [Element] element An optional element to move to first
       #   @param [Array, Symbol, String] keys The key(s) to press and release
       #   @param [Symbol, String] device Optional name of the KeyInput device to press and release the keys on
-      # @return [W3CActionBuilder] A self reference
+      # @return [ActionBuilder] A self reference
       #
 
       def send_keys(*args, device: nil)
@@ -130,15 +130,19 @@ module Selenium
       # @option args [Symbol, String] key The key to perform the action with
       # @param [Symbol] action The name of the key action to perform
       # @param [Symbol, String] device optional name of the KeyInput device to press the key on
-      # @return [W3CActionBuilder] A self reference
+      # @return [ActionBuilder] A self reference
       #
 
       def key_action(*args, action: nil, device: nil)
-        key_input = get_device(device) || key_inputs.first
+        key_input = key_input(device)
         click(args.shift) if args.first.is_a? Element
         key_input.send(action, args.last)
         tick(key_input)
         self
+      end
+
+      def key_input(name = nil)
+        device(name: name, type: Interactions::KEY) || add_key_input('keyboard')
       end
     end # KeyActions
   end # WebDriver

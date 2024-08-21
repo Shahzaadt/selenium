@@ -24,16 +24,23 @@
 
 #include "Alert.h"
 #include "BrowserFactory.h"
+#include "CustomTypes.h"
 #include "messages.h"
+#include "HookProcessor.h"
+#include "Script.h"
 #include "StringUtilities.h"
+#include "WebDriverConstants.h"
+#include "WindowUtilities.h"
 
 namespace webdriver {
 
-Browser::Browser(IWebBrowser2* browser, HWND hwnd, HWND session_handle) : DocumentHost(hwnd, session_handle) {
+Browser::Browser(IWebBrowser2* browser, HWND hwnd, HWND session_handle, bool is_edge_chromium) : DocumentHost(hwnd, session_handle) {
   LOG(TRACE) << "Entering Browser::Browser";
+  this->is_explicit_close_requested_ = false;
   this->is_navigation_started_ = false;
   this->browser_ = browser;
   this->AttachEvents();
+  this->set_is_edge_chromium(is_edge_chromium);
 }
 
 Browser::~Browser(void) {
@@ -48,11 +55,57 @@ void __stdcall Browser::BeforeNavigate2(IDispatch* pObject,
                                         VARIANT* pvarHeaders,
                                         VARIANT_BOOL* pbCancel) {
   LOG(TRACE) << "Entering Browser::BeforeNavigate2";
+  std::wstring url(pvarUrl->bstrVal);
+
+  LOG(DEBUG) << "BeforeNavigate2: Url: " << LOGWSTRING(url) << ", TargetFrame: " << pvarTargetFrame->bstrVal;
 }
 
 void __stdcall Browser::OnQuit() {
   LOG(TRACE) << "Entering Browser::OnQuit";
+  if (!this->is_explicit_close_requested_) {
+    if (this->is_awaiting_new_process()) {
+      LOG(WARN) << "A new browser process was requested. This means a Protected "
+                << "Mode boundary has been crossed, and that future commands to "
+                << "the current browser instance will fail. The driver will "
+                << "attempt to reconnect to the newly created browser object, "
+                << "but there is no guarantee it will work.";
+      DWORD process_id;
+      HWND window_handle = this->GetBrowserWindowHandle();
+      ::GetWindowThreadProcessId(window_handle, &process_id);
+
+      BrowserReattachInfo* info = new BrowserReattachInfo;
+      info->browser_id = this->browser_id();
+      info->current_process_id = process_id;
+      info->known_process_ids = this->known_process_ids_;
+
+      this->DetachEvents();
+      this->browser_ = NULL;
+      ::PostMessage(this->executor_handle(),
+                    WD_BROWSER_REATTACH,
+                    NULL,
+                    reinterpret_cast<LPARAM>(info));
+      return;
+    } else {
+      LOG(WARN) << "This instance of Internet Explorer (" << this->browser_id()
+                << ") is exiting without an explicit request to close it. "
+                << "Unless you clicked a link that specifically attempts to "
+                << "close the page, that likely means a Protected Mode "
+                << "boundary has been crossed (either entering or exiting "
+                << "Protected Mode). It is highly likely that any subsequent "
+                << "commands to this driver instance will fail. THIS IS NOT A "
+                << "BUG IN THE IE DRIVER! Fix your code and/or browser "
+                << "configuration so that a Protected Mode boundary is not "
+                << "crossed.";
+    }
+  }
   this->PostQuitMessage();
+}
+
+void __stdcall Browser::NewProcess(DWORD lCauseFlag,
+                                   IDispatch* pWB2,
+                                   VARIANT_BOOL* pbCancel) {
+  LOG(TRACE) << "Entering Browser::NewProcess";
+  this->InitiateBrowserReattach();
 }
 
 void __stdcall Browser::NewWindow3(IDispatch** ppDisp,
@@ -61,35 +114,74 @@ void __stdcall Browser::NewWindow3(IDispatch** ppDisp,
                                    BSTR bstrUrlContext,
                                    BSTR bstrUrl) {
   LOG(TRACE) << "Entering Browser::NewWindow3";
-  // Handle the NewWindow3 event to allow us to immediately hook
-  // the events of the new browser window opened by the user action.
-  // The three ways we can respond to this event are documented at
-  // http://msdn.microsoft.com/en-us/library/aa768337%28v=vs.85%29.aspx
-  // We potentially use two of those response methods.
-  // This will not allow us to handle windows created by the JavaScript
-  // showModalDialog function().
-  IWebBrowser2* browser;
-  LPSTREAM message_payload;
-  LRESULT create_result = ::SendMessage(this->executor_handle(),
-                                        WD_BROWSER_NEW_WINDOW,
-                                        NULL,
-                                        reinterpret_cast<LPARAM>(&message_payload));
-  if (create_result != 0) {
-    // The new, blank IWebBrowser2 object was not created,
-    // so we can't really do anything appropriate here.
-    // Note this is "response method 2" of the aforementioned
-    // documentation.
-    LOG(WARN) << "A valid IWebBrowser2 object could not be created.";
-    *pbCancel = VARIANT_TRUE;
-    return;
+  ::PostMessage(this->executor_handle(), WD_BEFORE_NEW_WINDOW, NULL, NULL);
+  std::vector<HWND>* ie_window_handles = nullptr;
+  WPARAM param_flag = 0;
+
+  if (this->is_edge_chromium()) {
+    param_flag = 1000;
+    //HWND top_level_handle = this->GetTopLevelWindowHandle();
+    // 1) find all Edge browser window handles
+    std::vector<HWND>edge_window_handles;
+    ::EnumWindows(&BrowserFactory::FindEdgeBrowserHandles,
+                  reinterpret_cast<LPARAM>(&edge_window_handles));
+
+    // 2) find all IE browser window handlers as child window when Edge runs in IEMode
+    ie_window_handles = new std::vector<HWND>;
+    for (HWND& edge_window_handle : edge_window_handles) {
+      std::vector<HWND> child_window_handles;
+      ::EnumChildWindows(edge_window_handle,
+                         &BrowserFactory::FindIEBrowserHandles,
+                         reinterpret_cast<LPARAM>(&child_window_handles));
+
+      for (HWND& child_window_handle : child_window_handles) {
+        ie_window_handles->push_back(child_window_handle);
+      }
+    }
+  } else {
+    // Handle the NewWindow3 event to allow us to immediately hook
+    // the events of the new browser window opened by the user action.
+    // The three ways we can respond to this event are documented at
+    // http://msdn.microsoft.com/en-us/library/aa768337%28v=vs.85%29.aspx
+    // We potentially use two of those response methods.
+    // This will not allow us to handle windows created by the JavaScript
+    // showModalDialog function().
+    std::wstring url = bstrUrl;
+    IWebBrowser2* browser;
+    NewWindowInfo info;
+    info.target_url = StringUtilities::ToString(url);
+    LRESULT create_result = ::SendMessage(this->executor_handle(),
+                                          WD_BROWSER_NEW_WINDOW,
+                                          NULL,
+                                          reinterpret_cast<LPARAM>(&info));
+    if (create_result != 0) {
+      // The new, blank IWebBrowser2 object was not created,
+      // so we can't really do anything appropriate here.
+      // Note this is "response method 2" of the aforementioned
+      // documentation.
+      LOG(WARN) << "A valid IWebBrowser2 object could not be created.";
+      *pbCancel = VARIANT_TRUE;
+      ::PostMessage(this->executor_handle(), WD_AFTER_NEW_WINDOW, NULL, NULL);
+      return;
+    }
+
+    // We received a valid IWebBrowser2 pointer, so deserialize it onto this
+    // thread, and pass the result back to the caller.
+    HRESULT hr = ::CoGetInterfaceAndReleaseStream(info.browser_stream,
+                                                  IID_IWebBrowser2,
+                                                  reinterpret_cast<void**>(&browser));
+    if (FAILED(hr)) {
+      LOGHR(WARN, hr) << "Failed to marshal IWebBrowser2 interface from stream.";
+    }
+
+    *ppDisp = browser;
   }
 
-  // We received a valid IWebBrowser2 pointer, so deserialize it onto this
-  // thread, and pass the result back to the caller.
-  HRESULT hr = ::CoGetInterfaceAndReleaseStream(message_payload,
-                                                IID_IWebBrowser2,
-                                                reinterpret_cast<void**>(&browser));
-  *ppDisp = browser;
+  // 3) pass all IE window handles to WD_AFTER_NEW_WINDOW
+  ::PostMessage(this->executor_handle(),
+                WD_AFTER_NEW_WINDOW,
+                param_flag,
+                reinterpret_cast<LPARAM>(ie_window_handles));
 }
 
 void __stdcall Browser::DocumentComplete(IDispatch* pDisp, VARIANT* URL) {
@@ -113,8 +205,25 @@ void __stdcall Browser::DocumentComplete(IDispatch* pDisp, VARIANT* URL) {
       LOG(DEBUG) << "DocumentComplete happened from within a frameset";
       this->SetFocusedFrameByElement(NULL);
     }
-    ::PostMessage(this->executor_handle(), WD_REFRESH_MANAGED_ELEMENTS, NULL, NULL);
   }
+}
+
+void Browser::InitiateBrowserReattach() {
+  LOG(TRACE) << "Entering Browser::InitiateBrowserReattach";
+  LOG(DEBUG) << "Requesting browser reattach";
+  this->known_process_ids_.clear();
+  WindowUtilities::GetProcessesByName(L"iexplore.exe",
+                                      &this->known_process_ids_);
+  this->set_is_awaiting_new_process(true);
+  ::SendMessage(this->executor_handle(), WD_BEFORE_BROWSER_REATTACH, NULL, NULL);
+}
+
+void Browser::ReattachBrowser(IWebBrowser2* browser) {
+  LOG(TRACE) << "Entering Browser::ReattachBrowser";
+  this->browser_ = browser;
+  this->AttachEvents();
+  this->set_is_awaiting_new_process(false);
+  LOG(DEBUG) << "Reattach complete";
 }
 
 void Browser::GetDocument(IHTMLDocument2** doc) {
@@ -205,24 +314,36 @@ std::string Browser::GetBrowserUrl() {
 HWND Browser::GetContentWindowHandle() {
   LOG(TRACE) << "Entering Browser::GetContentWindowHandle";
 
-  // If, for some reason, the window handle is no longer valid,
-  // set the member variable to NULL so that we can reacquire
-  // the valid window handle. Note that this can happen when
-  // browsing from one type of content to another, like from
-  // HTML to a transformed XML page that renders content.
-  if (!::IsWindow(this->window_handle())) {
-    LOG(INFO) << "Flushing window handle as it is no longer valid";
-    this->set_window_handle(NULL);
-  }
+  HWND current_content_window_handle = this->window_handle();
+  // If this window is closing, the only reason to care about
+  // a valid window handle is to check for alerts whose parent
+  // is this window handle, so return the stored window handle.
+  if (!this->is_closing()) {
+    // If, for some reason, the window handle is no longer valid, set the
+    // member variable to NULL so that we can reacquire the valid window
+    // handle. Note that this can happen when browsing from one type of
+    // content to another, like from HTML to a transformed XML page that
+    // renders content. If the member variable is NULL upon entering this
+    // method, that is okay, as it typically means only that this object
+    // is newly constructed, and has not yet had its handle set.
+    bool window_handle_is_valid = ::IsWindow(current_content_window_handle);
+    if (!window_handle_is_valid) {
+      LOG(INFO) << "Flushing window handle as it is no longer valid";
+      this->set_window_handle(NULL);
+    }
 
-  if (this->window_handle() == NULL) {
-    LOG(INFO) << "Restore window handle from tab";
-    // GetBrowserWindowHandle gets the TabWindowClass window in IE 7 and 8,
-    // and the top-level window frame in IE 6. The window we need is the
-    // InternetExplorer_Server window.
-    HWND tab_window_handle = this->GetBrowserWindowHandle();
-    HWND content_window_handle = this->FindContentWindowHandle(tab_window_handle);
-    this->set_window_handle(content_window_handle);
+    if (this->window_handle() == NULL) {
+      LOG(INFO) << "Restore window handle from tab";
+      // GetBrowserWindowHandle gets the TabWindowClass window in IE 7 and 8,
+      // and the top-level window frame in IE 6. The window we need is the
+      // InternetExplorer_Server window.
+      HWND tab_window_handle = this->GetBrowserWindowHandle();
+      if (tab_window_handle == NULL) {
+        LOG(WARN) << "No tab window found";
+      }
+      HWND content_window_handle = this->FindContentWindowHandle(tab_window_handle);
+      this->set_window_handle(content_window_handle);
+    }
   }
 
   return this->window_handle();
@@ -305,23 +426,39 @@ void Browser::DetachEvents() {
 
 void Browser::Close() {
   LOG(TRACE) << "Entering Browser::Close";
+  if (this->is_edge_chromium()) {
+    // For Edge in IE Mode, cache the top-level hosting Chromium window
+    // handle so they can be properly closed on quit.
+    HWND top_level_window_handle = this->GetTopLevelWindowHandle();
+    ::SendMessage(this->executor_handle(),
+                  WD_ADD_CHROMIUM_WINDOW_HANDLE,
+                  reinterpret_cast<WPARAM>(top_level_window_handle),
+                  NULL);
+  }
+
+  this->is_explicit_close_requested_ = true;
+  this->set_is_closing(true);
   // Closing the browser, so having focus on a frame doesn't
   // make any sense.
   this->SetFocusedFrameByElement(NULL);
-  HRESULT hr = this->browser_->Quit();
+
+  HRESULT hr = S_OK;
+  hr = this->browser_->Stop();
+  hr = this->browser_->Quit();
+
   if (FAILED(hr)) {
     LOGHR(WARN, hr) << "Call to IWebBrowser2::Quit failed";
   }
 }
 
-int Browser::NavigateToUrl(const std::string& url) {
+int Browser::NavigateToUrl(const std::string& url,
+                           std::string* error_message) {
   LOG(TRACE) << "Entring Browser::NavigateToUrl";
 
   std::wstring wide_url = StringUtilities::ToWString(url);
   CComVariant url_variant(wide_url.c_str());
   CComVariant dummy;
 
-  // TODO: check HRESULT for error
   HRESULT hr = this->browser_->Navigate2(&url_variant,
                                          &dummy,
                                          &dummy,
@@ -329,6 +466,12 @@ int Browser::NavigateToUrl(const std::string& url) {
                                          &dummy);
   if (FAILED(hr)) {
     LOGHR(WARN, hr) << "Call to IWebBrowser2::Navigate2 failed";
+    _com_error error(hr);
+    std::wstring formatted_message = StringUtilities::Format(
+        L"Received error: 0x%08x ['%s']",
+        hr,
+        error.ErrorMessage());
+    *error_message = StringUtilities::ToString(formatted_message);
     return EUNHANDLEDERROR;
   }
 
@@ -416,7 +559,10 @@ HWND Browser::GetTopLevelWindowHandle() {
   LOG(TRACE) << "Entering Browser::GetTopLevelWindowHandle";
 
   HWND top_level_window_handle = NULL;
-  this->browser_->get_HWND(reinterpret_cast<SHANDLE_PTR*>(&top_level_window_handle));
+  HRESULT hr = this->browser_->get_HWND(reinterpret_cast<SHANDLE_PTR*>(&top_level_window_handle));
+  if (FAILED(hr)) {
+    LOGHR(WARN, hr) << "Getting HWND property of IWebBrowser2 object failed";
+  }
 
   return top_level_window_handle;
 }
@@ -436,11 +582,15 @@ bool Browser::IsBusy() {
 
 bool Browser::Wait(const std::string& page_load_strategy) {
   LOG(TRACE) << "Entering Browser::Wait";
-  
-  if (page_load_strategy == "none") {
+
+  if (page_load_strategy == NONE_PAGE_LOAD_STRATEGY) {
     LOG(DEBUG) << "Page load strategy is 'none'. Aborting wait.";
     this->set_wait_required(false);
     return true;
+  }
+
+  if (this->is_awaiting_new_process()) {
+    return false;
   }
 
   bool is_navigating = true;
@@ -457,7 +607,7 @@ bool Browser::Wait(const std::string& page_load_strategy) {
 
   // Navigate events completed. Waiting for browser.Busy != false...
   is_navigating = this->is_navigation_started_;
-  if (is_navigating || this->IsBusy()) {
+  if (is_navigating || (page_load_strategy == NORMAL_PAGE_LOAD_STRATEGY && this->IsBusy())) {
     if (is_navigating) {
       LOG(DEBUG) << "DocumentComplete event fired, indicating a new navigation.";
     } else {
@@ -467,7 +617,7 @@ bool Browser::Wait(const std::string& page_load_strategy) {
   }
 
   READYSTATE expected_ready_state = READYSTATE_COMPLETE;
-  if (page_load_strategy == "eager") {
+  if (page_load_strategy == EAGER_PAGE_LOAD_STRATEGY) {
     expected_ready_state = READYSTATE_INTERACTIVE;
   }
 
@@ -537,10 +687,10 @@ bool Browser::IsDocumentNavigating(const std::string& page_load_strategy,
   } else {
     std::wstring ready_state = ready_state_bstr;
     if ((ready_state == L"complete") ||
-        (page_load_strategy == "eager" && ready_state == L"interactive")) {
+        (page_load_strategy == EAGER_PAGE_LOAD_STRATEGY && ready_state == L"interactive")) {
       is_navigating = false;
     } else {
-      if (page_load_strategy == "eager") {
+      if (page_load_strategy == EAGER_PAGE_LOAD_STRATEGY) {
         LOG(DEBUG) << "document.readyState is not 'complete' or 'interactive'; it was " << LOGWSTRING(ready_state);
       } else {
         LOG(DEBUG) << "document.readyState is not 'complete'; it was " << LOGWSTRING(ready_state);
@@ -662,6 +812,8 @@ HWND Browser::GetBrowserWindowHandle() {
   CComPtr<IServiceProvider> service_provider;
   HRESULT hr = this->browser_->QueryInterface(IID_IServiceProvider,
                                               reinterpret_cast<void**>(&service_provider));
+  HWND hwnd_tmp = NULL;
+  this->browser_->get_HWND(reinterpret_cast<SHANDLE_PTR*>(&hwnd_tmp));
   if (SUCCEEDED(hr)) {
     CComPtr<IOleWindow> window;
     hr = service_provider->QueryService(SID_SShellBrowser,
@@ -681,41 +833,52 @@ HWND Browser::GetBrowserWindowHandle() {
   return hwnd;
 }
 
-//HWND Browser::GetTabWindowHandle() {
-//  LOG(TRACE) << "Entering Browser::GetTabWindowHandle";
-//
-//  HWND hwnd = NULL;
-//  CComPtr<IServiceProvider> service_provider;
-//  HRESULT hr = this->browser_->QueryInterface(IID_IServiceProvider,
-//                                              reinterpret_cast<void**>(&service_provider));
-//  if (SUCCEEDED(hr)) {
-//    CComPtr<IOleWindow> window;
-//    hr = service_provider->QueryService(SID_SShellBrowser,
-//                                        IID_IOleWindow,
-//                                        reinterpret_cast<void**>(&window));
-//    if (SUCCEEDED(hr)) {
-//      // This gets the TabWindowClass window in IE 7 and 8,
-//      // and the top-level window frame in IE 6. The window
-//      // we need is the InternetExplorer_Server window.
-//      window->GetWindow(&hwnd);
-//      hwnd = this->FindContentWindowHandle(hwnd);
-//    } else {
-//      LOGHR(WARN, hr) << "Unable to get window, call to IOleWindow::QueryService for SID_SShellBrowser failed";
-//    }
-//  } else {
-//    LOGHR(WARN, hr) << "Unable to get service, call to IWebBrowser2::QueryInterface for IID_IServiceProvider failed";
-//  }
-//
-//  return hwnd;
-//}
+bool Browser::SetFullScreen(bool is_full_screen) {
+  VARIANT_BOOL full_screen_value = VARIANT_TRUE;
+  std::wstring full_screen_script = L"window.fullScreen = true;";
+  if (!is_full_screen) {
+    full_screen_value = VARIANT_FALSE;
+    full_screen_script = L"delete window.fullScreen;";
+  }
+  this->browser_->put_FullScreen(full_screen_value);
+
+  // IE does not support the W3C Fullscreen API (and likely never will).
+  // The prefixed version cannot be triggered via JavaScript outside of
+  // a user interaction, so we're going to cheat here and manually set
+  // the fullScreen property of the window object to the appropriate
+  // value. This may interfere with polyfills in use, and if that's
+  // the case, we'll revisit this hack.
+  CComPtr<IHTMLDocument2> doc;
+  this->GetDocument(true, &doc);
+  std::wstring script = ANONYMOUS_FUNCTION_START;
+  script += full_screen_script;
+  script += ANONYMOUS_FUNCTION_END;
+  Script script_wrapper(doc, script, 0);
+  script_wrapper.Execute();
+  return true;
+}
+
+bool Browser::IsFullScreen() {
+  VARIANT_BOOL is_full_screen = VARIANT_FALSE;
+  this->browser_->get_FullScreen(&is_full_screen);
+  return is_full_screen == VARIANT_TRUE;
+}
 
 HWND Browser::GetActiveDialogWindowHandle() {
   LOG(TRACE) << "Entering Browser::GetActiveDialogWindowHandle";
 
   HWND active_dialog_handle = NULL;
 
-  DWORD process_id;
-  ::GetWindowThreadProcessId(this->GetContentWindowHandle(), &process_id);
+  HWND content_window_handle = this->GetContentWindowHandle();
+  if (content_window_handle == NULL) {
+    return active_dialog_handle;
+  }
+
+  DWORD process_id = 0;
+  ::GetWindowThreadProcessId(content_window_handle, &process_id);
+  if (process_id == 0) {
+    return active_dialog_handle;
+  }
 
   ProcessWindowInfo process_win_info;
   process_win_info.dwProcessId = process_id;

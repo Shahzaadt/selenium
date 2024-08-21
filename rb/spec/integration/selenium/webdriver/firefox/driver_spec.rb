@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,111 +21,141 @@ require_relative '../spec_helper'
 
 module Selenium
   module WebDriver
-    compliant_on browser: [:firefox, :ff_nightly] do
-      describe Firefox do
-        def restart_remote_server
-          server = GlobalTestEnv.reset_remote_server
-          server.start
-          server.webdriver_url
-        end
+    module Firefox
+      describe Driver, exclusive: [{bidi: false, reason: 'Not yet implemented with BiDi'}, {browser: :firefox}] do
+        let(:extensions) { '../../../../../../common/extensions/' }
 
-        before(:all) do
-          driver
-          quit_driver
-        end
+        describe '#print_options' do
+          let(:magic_number) { 'JVBER' }
 
-        before(:each) do
-          @opt = {}
-          @browser = if GlobalTestEnv.driver == :remote
-                       @opt[:url] = restart_remote_server
-                       :remote
-                     else
-                       :firefox
-                     end
-        end
+          before { driver.navigate.to url_for('printPage.html') }
 
-        not_compliant_on driver: :remote do
-          it 'creates default capabilities' do
-            begin
-              driver1 = Selenium::WebDriver.for(@browser, @opt)
-              caps = driver1.capabilities
-              expect(caps.proxy).to be_nil
-              expect(caps.platform_name).to_not be_nil
-              expect(caps.browser_version).to match(/^\d\d\./)
-              expect(caps.platform_version).to_not be_nil
+          it 'returns base64 for print command' do
+            expect(driver.print_page).to include(magic_number)
+          end
 
-              compliant_on browser: :ff_nightly do
-                expect(caps.accept_insecure_certs).to be == false
-                expect(caps.page_load_strategy).to be == 'normal'
-                expect(caps.accessibility_checks).to be == false
-                expect(caps.implicit_timeout).to be == 0
-                expect(caps.page_load_timeout).to be == 300000
-                expect(caps.script_timeout).to be == 30000
-              end
+          it 'prints with orientation' do
+            expect(driver.print_page(orientation: 'landscape')).to include(magic_number)
+          end
 
-              expect(caps.remote_session_id).to be_nil
+          it 'prints with valid params' do
+            expect(driver.print_page(orientation: 'landscape',
+                                     page_ranges: ['1-2'],
+                                     page: {width: 30})).to include(magic_number)
+          end
 
-              compliant_on browser: :ff_esr do
-                expect(caps.rotatable).to be == false
-              end
-            ensure
-              driver1.quit
-            end
+          it 'prints full page', except: [{platform: :windows,
+                                           reason: 'Some issues with resolution?'},
+                                          {platform: :macosx,
+                                           reason: 'showing half resolution of what expected'}] do
+            viewport_width = driver.execute_script('return window.innerWidth;')
+            viewport_height = driver.execute_script('return window.innerHeight;')
+
+            path = "#{Dir.tmpdir}/test#{SecureRandom.urlsafe_base64}.png"
+            screenshot = driver.save_full_page_screenshot(path)
+            width, height = png_size(screenshot)
+
+            expect(width).to be >= viewport_width
+            expect(height).to be > viewport_height
+          ensure
+            FileUtils.rm_rf(path)
           end
         end
 
-        # Remote needs to implement firefox options
-        not_compliant_on driver: :remote do
-          it 'takes a binary path as an argument' do
-            pending "Set ENV['ALT_FIREFOX_BINARY'] to test this" unless ENV['ALT_FIREFOX_BINARY']
-            begin
-              @path = Firefox::Binary.path
-              driver1 = Selenium::WebDriver.for @browser, @opt.dup
+        describe '#install_addon' do
+          it 'install and uninstall xpi file' do
+            Selenium::WebDriver.logger.level = :debug
+            ext = File.expand_path("#{extensions}/webextensions-selenium-example.xpi", __dir__)
+            id = driver.install_addon(ext)
 
-              default_version = driver1.capabilities.version
-              expect { driver1.capabilities.browser_version }.to_not raise_exception
-              driver1.quit
+            expect(id).to eq 'webextensions-selenium-example-v3@example.com'
+            driver.navigate.to url_for('blank.html')
 
-              caps = Remote::Capabilities.firefox(firefox_options: {binary: ENV['ALT_FIREFOX_BINARY']})
-              @opt[:desired_capabilities] = caps
-              driver2 = Selenium::WebDriver.for @browser, @opt
+            injected = driver.find_element(id: 'webextensions-selenium-example')
+            expect(injected.text).to eq 'Content injected by webextensions-selenium-example'
 
-              expect(driver2.capabilities.version).to_not eql(default_version)
-              expect { driver2.capabilities.browser_version }.to_not raise_exception
-              driver2.quit
-            ensure
-              Firefox::Binary.path = @path
-            end
+            driver.uninstall_addon(id)
+            driver.navigate.refresh
+            expect(driver.find_elements(id: 'webextensions-selenium-example')).to be_empty
           end
 
-          it 'gives precedence to firefox options versus argument switch' do
-            pending "Set ENV['ALT_FIREFOX_BINARY'] to test this" unless ENV['ALT_FIREFOX_BINARY']
-            begin
-              @path = Firefox::Binary.path
-              driver1 = Selenium::WebDriver.for @browser, @opt.dup
+          it 'install and uninstall signed zip file' do
+            ext = File.expand_path("#{extensions}/webextensions-selenium-example.zip", __dir__)
+            id = driver.install_addon(ext)
 
-              default_path = Firefox::Binary.path
-              default_version = driver1.capabilities.version
-              driver1.quit
+            expect(id).to eq 'webextensions-selenium-example-v3@example.com'
+            driver.navigate.to url_for('blank.html')
 
-              caps = Remote::Capabilities.firefox(firefox_options: {binary: ENV['ALT_FIREFOX_BINARY']},
-                                                  service_args: {binary: default_path})
-              @opt[:desired_capabilities] = caps
-              driver2 = Selenium::WebDriver.for @browser, @opt
+            injected = driver.find_element(id: 'webextensions-selenium-example')
+            expect(injected.text).to eq 'Content injected by webextensions-selenium-example'
 
-              expect(driver2.capabilities.version).to_not eql(default_version)
-              expect { driver2.capabilities.browser_version }.to_not raise_exception
-              driver2.quit
-            ensure
-              Firefox::Binary.path = @path
-            end
+            driver.uninstall_addon(id)
+            driver.navigate.refresh
+            expect(driver.find_elements(id: 'webextensions-selenium-example')).to be_empty
+          end
+
+          it 'install and uninstall unsigned zip file' do
+            ext = File.expand_path("#{extensions}/webextensions-selenium-example-unsigned.zip", __dir__)
+            id = driver.install_addon(ext, true)
+
+            expect(id).to eq 'webextensions-selenium-example-v3@example.com'
+            driver.navigate.to url_for('blank.html')
+
+            injected = driver.find_element(id: 'webextensions-selenium-example')
+            expect(injected.text).to eq 'Content injected by webextensions-selenium-example'
+
+            driver.uninstall_addon(id)
+            driver.navigate.refresh
+            expect(driver.find_elements(id: 'webextensions-selenium-example')).to be_empty
+          end
+
+          it 'install and uninstall signed directory', except: {browser: :firefox,
+                                                                platform: :windows,
+                                                                reason: 'signature must be different for windows,
+                                                                skipping everywhere until Firefox 127 is released'} do
+            ext = File.expand_path("#{extensions}/webextensions-selenium-example-signed/", __dir__)
+            id = driver.install_addon(ext)
+
+            expect(id).to eq 'webextensions-selenium-example-v3@example.com'
+            driver.navigate.to url_for('blank.html')
+
+            injected = driver.find_element(id: 'webextensions-selenium-example')
+            expect(injected.text).to eq 'Content injected by webextensions-selenium-example'
+
+            driver.uninstall_addon(id)
+            driver.navigate.refresh
+            expect(driver.find_elements(id: 'webextensions-selenium-example')).to be_empty
+          end
+
+          it 'install and uninstall unsigned directory' do
+            ext = File.expand_path("#{extensions}/webextensions-selenium-example/", __dir__)
+            id = driver.install_addon(ext, true)
+
+            expect(id).to eq 'webextensions-selenium-example-v3@example.com'
+            driver.navigate.to url_for('blank.html')
+
+            injected = driver.find_element(id: 'webextensions-selenium-example')
+            expect(injected.text).to eq 'Content injected by webextensions-selenium-example'
+
+            driver.uninstall_addon(id)
+            driver.navigate.refresh
+            expect(driver.find_elements(id: 'webextensions-selenium-example')).to be_empty
           end
         end
 
-        context 'when shared example' do
-          it_behaves_like 'driver that can be started concurrently', :firefox
+        it 'can get and set context' do
+          reset_driver!(prefs: {'browser.download.dir': 'foo/bar'}) do |driver|
+            expect(driver.context).to eq 'content'
+
+            driver.context = 'chrome'
+            expect(driver.context).to eq 'chrome'
+
+            # This call can not be made when context is set to 'content'
+            dir = driver.execute_script("return Services.prefs.getStringPref('browser.download.dir')")
+            expect(dir).to eq 'foo/bar'
+          end
         end
       end
-    end
+    end # Firefox
   end # WebDriver
 end # Selenium

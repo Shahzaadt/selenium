@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -37,9 +37,10 @@ module Selenium
                  auto_detect: 'autodetect',
                  socks: 'socksProxy',
                  socks_username: 'socksUsername',
-                 socks_password: 'socksPassword'}.freeze
+                 socks_password: 'socksPassword',
+                 socks_version: 'socksVersion'}.freeze
 
-      ALLOWED.keys.each { |t| attr_reader t }
+      ALLOWED.each_key { |t| attr_reader t }
 
       def self.json_create(data)
         data['proxyType'] = data['proxyType'].downcase.to_sym
@@ -48,7 +49,7 @@ module Selenium
         proxy = new
 
         ALLOWED.each do |k, v|
-          proxy.send("#{k}=", data[v]) if data.key?(v)
+          proxy.send(:"#{k}=", data[v]) if data.key?(v)
         end
 
         proxy
@@ -59,20 +60,21 @@ module Selenium
 
         opts.each do |k, v|
           if ALLOWED.key?(k)
-            send("#{k}=", v)
+            send(:"#{k}=", v)
           else
             not_allowed << k
           end
         end
 
         return if not_allowed.empty?
+
         raise ArgumentError, "unknown option#{'s' if not_allowed.size != 1}: #{not_allowed.inspect}"
       end
 
       def ==(other)
         other.is_a?(self.class) && as_json == other.as_json
       end
-      alias_method :eql?, :==
+      alias eql? ==
 
       def ftp=(value)
         self.type = :manual
@@ -119,9 +121,15 @@ module Selenium
         @socks_password = value
       end
 
+      def socks_version=(value)
+        self.type = :manual
+        @socks_version = value
+      end
+
       def type=(type)
         unless TYPES.key? type
-          raise ArgumentError, "invalid proxy type: #{type.inspect}, expected one of #{TYPES.keys.inspect}"
+          raise ArgumentError,
+                "invalid proxy type: #{type.inspect}, expected one of #{TYPES.keys.inspect}"
         end
 
         if defined?(@type) && type != @type
@@ -133,17 +141,18 @@ module Selenium
 
       def as_json(*)
         json_result = {
-          'proxyType' => TYPES[type],
+          'proxyType' => TYPES[type].downcase,
           'ftpProxy' => ftp,
           'httpProxy' => http,
-          'noProxy' => no_proxy,
+          'noProxy' => no_proxy.is_a?(String) ? no_proxy.split(', ') : no_proxy,
           'proxyAutoconfigUrl' => pac,
           'sslProxy' => ssl,
           'autodetect' => auto_detect,
           'socksProxy' => socks,
           'socksUsername' => socks_username,
-          'socksPassword' => socks_password
-        }.delete_if { |_k, v| v.nil? }
+          'socksPassword' => socks_password,
+          'socksVersion' => socks_version
+        }.compact
 
         json_result if json_result.length > 1
       end

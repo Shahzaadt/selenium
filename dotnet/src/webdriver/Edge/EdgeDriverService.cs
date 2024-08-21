@@ -1,4 +1,4 @@
-﻿// <copyright file="EdgeDriverService.cs" company="Microsoft">
+// <copyright file="EdgeDriverService.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -16,23 +16,19 @@
 // limitations under the License.
 // </copyright>
 
-using System;
-using System.Globalization;
-using System.Text;
+using OpenQA.Selenium.Chromium;
 using OpenQA.Selenium.Internal;
+using System;
+using System.IO;
 
 namespace OpenQA.Selenium.Edge
 {
     /// <summary>
-    /// Exposes the service provided by the native MicrosoftWebDriver executable.
+    /// Exposes the service provided by the native WebDriver executable.
     /// </summary>
-    public sealed class EdgeDriverService : DriverService
+    public sealed class EdgeDriverService : ChromiumDriverService
     {
-        private const string MicrosoftWebDriverServiceFileName = "MicrosoftWebDriver.exe";
-        private static readonly Uri MicrosoftWebDriverDownloadUrl = new Uri("http://go.microsoft.com/fwlink/?LinkId=619687");
-        private string host;
-        private string package;
-        private bool useVerboseLogging;
+        private const string MSEdgeDriverServiceFileName = "msedgedriver";
 
         /// <summary>
         /// Initializes a new instance of the <see cref="EdgeDriverService"/> class.
@@ -41,62 +37,24 @@ namespace OpenQA.Selenium.Edge
         /// <param name="executableFileName">The file name of the EdgeDriver executable.</param>
         /// <param name="port">The port on which the EdgeDriver executable should listen.</param>
         private EdgeDriverService(string executablePath, string executableFileName, int port)
-            : base(executablePath, port, executableFileName, MicrosoftWebDriverDownloadUrl)
+            : base(executablePath, executableFileName, port)
         {
         }
 
-        /// <summary>
-        /// Gets or sets the value of the host adapter on which the Edge driver service should listen for connections.
-        /// </summary>
-        public string Host
+        /// <inheritdoc />
+        protected override DriverOptions GetDefaultDriverOptions()
         {
-            get { return this.host; }
-            set { this.host = value; }
-        }
-
-        /// <summary>
-        /// Gets or sets the value of the package the Edge driver service will launch and automate.
-        /// </summary>
-        public string Package
-        {
-            get { return this.package; }
-            set { this.package = value; }
+            return new EdgeOptions();
         }
 
         /// <summary>
         /// Gets or sets a value indicating whether the service should use verbose logging.
         /// </summary>
+        [Obsolete("Use EnableVerboseLogging")]
         public bool UseVerboseLogging
         {
-            get { return this.useVerboseLogging; }
-            set { this.useVerboseLogging = value; }
-        }
-
-        /// <summary>
-        /// Gets the command-line arguments for the driver service.
-        /// </summary>
-        protected override string CommandLineArguments
-        {
-            get
-            {
-                StringBuilder argsBuilder = new StringBuilder(base.CommandLineArguments);
-                if (!string.IsNullOrEmpty(this.host))
-                {
-                    argsBuilder.Append(string.Format(CultureInfo.InvariantCulture, " --host={0}", this.host));
-                }
-
-                if (!string.IsNullOrEmpty(this.package))
-                {
-                    argsBuilder.Append(string.Format(CultureInfo.InvariantCulture, " --package={0}", this.package));
-                }
-
-                if (this.useVerboseLogging)
-                {
-                    argsBuilder.Append(" --verbose");
-                }
-
-                return argsBuilder.ToString();
-            }
+            get { return this.EnableVerboseLogging; }
+            set { this.EnableVerboseLogging = value; }
         }
 
         /// <summary>
@@ -105,19 +63,28 @@ namespace OpenQA.Selenium.Edge
         /// <returns>A EdgeDriverService that implements default settings.</returns>
         public static EdgeDriverService CreateDefaultService()
         {
-            string serviceDirectory = DriverService.FindDriverServiceExecutable(MicrosoftWebDriverServiceFileName, MicrosoftWebDriverDownloadUrl);
-            EdgeDriverService service = CreateDefaultService(serviceDirectory);
-            return service;
+            return new EdgeDriverService(null, null, PortUtilities.FindFreePort());
         }
 
         /// <summary>
         /// Creates a default instance of the EdgeDriverService using a specified path to the EdgeDriver executable.
         /// </summary>
         /// <param name="driverPath">The directory containing the EdgeDriver executable.</param>
-        /// <returns>A EdgeDriverService using a random port.</returns>
+        /// <returns>An EdgeDriverService using a random port.</returns>
         public static EdgeDriverService CreateDefaultService(string driverPath)
         {
-            return CreateDefaultService(driverPath, MicrosoftWebDriverServiceFileName);
+            string fileName;
+            if (File.Exists(driverPath))
+            {
+                fileName = Path.GetFileName(driverPath);
+                driverPath = Path.GetDirectoryName(driverPath);
+            }
+            else
+            {
+                fileName = ChromiumDriverServiceFileName(MSEdgeDriverServiceFileName);
+            }
+
+            return CreateDefaultService(driverPath, fileName);
         }
 
         /// <summary>
@@ -128,19 +95,8 @@ namespace OpenQA.Selenium.Edge
         /// <returns>A EdgeDriverService using a random port.</returns>
         public static EdgeDriverService CreateDefaultService(string driverPath, string driverExecutableFileName)
         {
-            return CreateDefaultService(driverPath, driverExecutableFileName, PortUtilities.FindFreePort());
+            return new EdgeDriverService(driverPath, driverExecutableFileName, PortUtilities.FindFreePort());
         }
 
-        /// <summary>
-        /// Creates a default instance of the EdgeDriverService using a specified path to the EdgeDriver executable with the given name and listening port.
-        /// </summary>
-        /// <param name="driverPath">The directory containing the EdgeDriver executable.</param>
-        /// <param name="driverExecutableFileName">The name of the EdgeDriver executable file</param>
-        /// <param name="port">The port number on which the driver will listen</param>
-        /// <returns>A EdgeDriverService using the specified port.</returns>
-        public static EdgeDriverService CreateDefaultService(string driverPath, string driverExecutableFileName, int port)
-        {
-            return new EdgeDriverService(driverPath, driverExecutableFileName, port);
-        }
     }
 }

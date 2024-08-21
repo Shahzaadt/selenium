@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,45 +17,49 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require 'childprocess'
 require 'tmpdir'
 require 'fileutils'
 require 'date'
 require 'json'
+require 'set'
+require 'uri'
+require 'net/http'
 
-require 'selenium/webdriver/common'
 require 'selenium/webdriver/atoms'
+require 'selenium/webdriver/common'
+require 'selenium/webdriver/version'
 
 module Selenium
   module WebDriver
     Point     = Struct.new(:x, :y)
     Dimension = Struct.new(:width, :height)
     Rectangle = Struct.new(:x, :y, :width, :height)
-    Location  = Struct.new(:latitude, :longitude, :altitude)
 
-    autoload :Chrome,    'selenium/webdriver/chrome'
-    autoload :Edge,      'selenium/webdriver/edge'
-    autoload :Firefox,   'selenium/webdriver/firefox'
-    autoload :IE,        'selenium/webdriver/ie'
-    autoload :PhantomJS, 'selenium/webdriver/phantomjs'
-    autoload :Remote,    'selenium/webdriver/remote'
-    autoload :Safari,    'selenium/webdriver/safari'
-    autoload :Support,   'selenium/webdriver/support'
+    autoload :BiDi,       'selenium/webdriver/bidi'
+    autoload :Chromium,   'selenium/webdriver/chromium'
+    autoload :Chrome,     'selenium/webdriver/chrome'
+    autoload :DevTools,   'selenium/webdriver/devtools'
+    autoload :Edge,       'selenium/webdriver/edge'
+    autoload :Firefox,    'selenium/webdriver/firefox'
+    autoload :IE,         'selenium/webdriver/ie'
+    autoload :Remote,     'selenium/webdriver/remote'
+    autoload :Safari,     'selenium/webdriver/safari'
+    autoload :Support,    'selenium/webdriver/support'
 
     # @api private
 
     def self.root
-      @root ||= File.expand_path('../..', __FILE__)
+      @root ||= File.expand_path('..', __dir__.to_s)
     end
 
     #
     # Create a new Driver instance with the correct bridge for the given browser
     #
     # @overload for(browser)
-    #   @param [:ie, :internet_explorer, :edge, :remote, :chrome, :firefox, :ff, :phantomjs, :safari] browser The browser to
+    #   @param [:ie, :internet_explorer, :edge, :remote, :chrome, :firefox, :ff, :safari] browser The browser to
     #     create the driver for
     # @overload for(browser, opts)
-    #   @param [:ie, :internet_explorer, :edge, :remote, :chrome, :firefox, :ff, :phantomjs, :safari] browser The browser to
+    #   @param [:ie, :internet_explorer, :edge, :remote, :chrome, :firefox, :ff, :safari] browser The browser to
     #     create the driver for
     #   @param [Hash] opts Options passed to Driver.new
     #
@@ -66,14 +70,13 @@ module Selenium
     # @see Selenium::WebDriver::IE::Driver
     # @see Selenium::WebDriver::Edge::Driver
     # @see Selenium::WebDriver::Chrome::Driver
-    # @see Selenium::WebDriver::PhantomJS::Driver
     # @see Selenium::WebDriver::Safari::Driver
     #
     # @example
     #
     #   WebDriver.for :firefox, profile: 'some-profile'
     #   WebDriver.for :firefox, profile: Profile.new
-    #   WebDriver.for :remote,  url: "http://localhost:4444/wd/hub", desired_capabilities: caps
+    #   WebDriver.for :remote,  url: "http://localhost:4444/wd/hub", capabilities: caps
     #
     # One special argument is not passed on to the bridges, :listener.
     # You can pass a listener for this option to get notified of WebDriver events.
@@ -92,8 +95,9 @@ module Selenium
     # @return [Logger]
     #
 
-    def self.logger
-      @logger ||= WebDriver::Logger.new
+    def self.logger(**opts)
+      level = $DEBUG || ENV.key?('DEBUG') ? :debug : :info
+      @logger ||= WebDriver::Logger.new('Selenium', default_level: level, **opts)
     end
   end # WebDriver
 end # Selenium

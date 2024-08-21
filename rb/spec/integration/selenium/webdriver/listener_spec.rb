@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,14 +21,13 @@ require_relative 'spec_helper'
 
 module Selenium
   module WebDriver
-    describe Driver do
+    describe Driver, exclusive: {bidi: false, reason: 'Not yet implemented with BiDi'} do
+      before { quit_driver }
+
       it 'supports listener' do
-        begin
-          listener = Selenium::WebDriver::Support::AbstractEventListener.new
-          driver = GlobalTestEnv.send(:create_driver, listener: listener)
-        ensure
-          driver.quit if driver
-        end
+        expect {
+          create_driver!(listener: Selenium::WebDriver::Support::AbstractEventListener.new) { nil }
+        }.not_to raise_exception
       end
     end
   end # WebDriver

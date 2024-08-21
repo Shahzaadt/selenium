@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -41,7 +41,7 @@ module Selenium
               to      = File.join(destination, entry.name)
               dirname = File.dirname(to)
 
-              FileUtils.mkdir_p dirname unless File.exist? dirname
+              FileUtils.mkdir_p dirname
               zip.extract(entry, to)
             end
           end
@@ -52,9 +52,7 @@ module Selenium
         def zip(path)
           with_tmp_zip do |zip|
             ::Find.find(path) do |file|
-              unless File.directory?(file)
-                add_zip_entry zip, file, file.sub("#{path}/", '')
-              end
+              add_zip_entry zip, file, file.sub("#{path}/", '') unless File.directory?(file)
             end
 
             zip.commit
@@ -74,16 +72,10 @@ module Selenium
         private
 
         def with_tmp_zip(&blk)
-          # can't use Tempfile here since it doesn't support File::BINARY mode on 1.8
-          # can't use Dir.mktmpdir(&blk) because of http://jira.codehaus.org/browse/JRUBY-4082
-          tmp_dir = Dir.mktmpdir
-          zip_path = File.join(tmp_dir, 'webdriver-zip')
-
-          begin
+          # Don't use Tempfile since it lacks rb_file_s_rename permission on Windows.
+          Dir.mktmpdir do |tmp_dir|
+            zip_path = File.join(tmp_dir, 'webdriver-zip')
             Zip::File.open(zip_path, Zip::File::CREATE, &blk)
-          ensure
-            FileUtils.rm_rf tmp_dir
-            FileUtils.rm_rf zip_path
           end
         end
 

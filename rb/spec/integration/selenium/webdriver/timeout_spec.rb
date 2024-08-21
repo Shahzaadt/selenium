@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,81 +21,77 @@ require_relative 'spec_helper'
 
 module Selenium
   module WebDriver
-    describe Timeouts do
-      context 'implicit waits' do
-        before do
-          driver.manage.timeouts.implicit_wait = 0
-          driver.navigate.to url_for('dynamic.html')
-        end
+    describe Timeouts, exclusive: {bidi: false, reason: 'Not yet implemented with BiDi'} do
+      before do
+        driver.manage.timeouts.implicit_wait = 6
+        driver.manage.timeouts.page_load = 2
+        driver.manage.timeouts.script = 1.5
+        driver.navigate.to url_for('dynamic.html')
+      end
 
-        after { driver.manage.timeouts.implicit_wait = 0 }
+      after do
+        driver.manage.timeouts.implicit_wait = 0
+        driver.manage.timeouts.page_load = 300
+        driver.manage.timeouts.script = 30
+      end
 
-        it 'should implicitly wait for a single element' do
-          driver.manage.timeouts.implicit_wait = 6
+      it 'gets all the timeouts' do
+        expect(driver.manage.timeouts.implicit_wait).to eq(6)
+        expect(driver.manage.timeouts.page_load).to eq(2)
+        expect(driver.manage.timeouts.script).to eq(1.5)
+      end
 
+      describe 'implicit waits' do
+        it 'implicitlies wait for a single element' do
           driver.find_element(id: 'adder').click
-          driver.find_element(id: 'box0')
+          expect { driver.find_element(id: 'box0') }.not_to raise_error
         end
 
-        # https://github.com/SeleniumHQ/selenium/issues/3338
-        not_compliant_on driver: :remote, platform: :macosx do
-          it 'should still fail to find an element with implicit waits enabled' do
-            driver.manage.timeouts.implicit_wait = 0.5
-            expect { driver.find_element(id: 'box0') }.to raise_error(WebDriver::Error::NoSuchElementError)
-          end
+        it 'stills fail to find an element with implicit waits enabled' do
+          driver.manage.timeouts.implicit_wait = 0.1
+          expect { driver.find_element(id: 'box0') }.to raise_error(WebDriver::Error::NoSuchElementError)
         end
 
-        # https://github.com/SeleniumHQ/selenium/issues/3338
-        not_compliant_on driver: :remote, platform: :macosx do
-          it 'should return after first attempt to find one after disabling implicit waits' do
-            driver.manage.timeouts.implicit_wait = 3
-            driver.manage.timeouts.implicit_wait = 0
-
-            expect { driver.find_element(id: 'box0') }.to raise_error(WebDriver::Error::NoSuchElementError)
-          end
+        it 'returns after first attempt to find one after disabling implicit waits' do
+          driver.manage.timeouts.implicit_wait = 0
+          expect { driver.find_element(id: 'box0') }.to raise_error(WebDriver::Error::NoSuchElementError)
         end
 
-        it 'should implicitly wait until at least one element is found when searching for many' do
+        it 'implicitlies wait until at least one element is found when searching for many' do
           add = driver.find_element(id: 'adder')
 
-          driver.manage.timeouts.implicit_wait = 6
           add.click
           add.click
 
           expect(driver.find_elements(class_name: 'redbox')).not_to be_empty
         end
 
-        not_compliant_on browser: :safari do
-          it 'should still fail to find elements when implicit waits are enabled' do
-            driver.manage.timeouts.implicit_wait = 0.5
-            expect(driver.find_elements(class_name: 'redbox')).to be_empty
-          end
+        it 'stills fail to find elements when implicit waits are enabled' do
+          driver.manage.timeouts.implicit_wait = 0.1
+          expect(driver.find_elements(class_name: 'redbox')).to be_empty
         end
 
-        not_compliant_on browser: :safari do
-          not_compliant_on browser: :firefox, platform: :windows do
-            it 'should return after first attempt to find many after disabling implicit waits' do
-              add = driver.find_element(id: 'adder')
+        it 'returns after first attempt to find many after disabling implicit waits' do
+          add = driver.find_element(id: 'adder')
 
-              driver.manage.timeouts.implicit_wait = 3
-              driver.manage.timeouts.implicit_wait = 0
-              add.click
+          driver.manage.timeouts.implicit_wait = 0
+          add.click
 
-              expect(driver.find_elements(class_name: 'redbox')).to be_empty
-            end
-          end
+          expect(driver.find_elements(class_name: 'redbox')).to be_empty
         end
       end
 
-      context 'page loads' do
-        # w3c default is 300,000
-        after { driver.manage.timeouts.page_load = 300000 }
+      describe 'page load' do
+        it 'times out if page takes too long to load' do
+          expect { driver.navigate.to url_for('sleep?time=3') }.to raise_error(WebDriver::Error::TimeoutError)
+        end
 
-        # The pageLoad change is currently only in Nightly
-        not_compliant_on driver: :firefox do
-          it 'should be able to set the page load timeout' do
-            expect { driver.manage.timeouts.page_load = 2 }.to_not raise_exception
-          end
+        it 'times out if page takes too long to load after click', except: {browser: %i[safari safari_preview]} do
+          driver.navigate.to url_for('page_with_link_to_slow_loading_page.html')
+
+          expect {
+            driver.find_element(id: 'link-to-slow-loading-page').click
+          }.to raise_error(WebDriver::Error::TimeoutError)
         end
       end
     end

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -30,6 +30,7 @@ module Selenium
 
     class Driver
       include SearchContext
+      include TakesScreenshot
 
       class << self
         #
@@ -42,20 +43,18 @@ module Selenium
 
         def for(browser, opts = {})
           case browser
-          when :chrome
-            Chrome::Driver.new(opts)
+          when :chrome, :chrome_headless_shell
+            Chrome::Driver.new(**opts)
           when :internet_explorer, :ie
-            IE::Driver.new(opts)
+            IE::Driver.new(**opts)
           when :safari
-            Safari::Driver.new(opts)
-          when :phantomjs
-            PhantomJS::Driver.new(opts)
+            Safari::Driver.new(**opts)
           when :firefox, :ff
-            Firefox::Driver.new(opts)
-          when :edge
-            Edge::Driver.new(opts)
+            Firefox::Driver.new(**opts)
+          when :edge, :microsoftedge, :msedge
+            Edge::Driver.new(**opts)
           when :remote
-            Remote::Driver.new(opts)
+            Remote::Driver.new(**opts)
           else
             raise ArgumentError, "unknown driver: #{browser.inspect}"
           end
@@ -69,13 +68,26 @@ module Selenium
       # @api private
       #
 
-      def initialize(bridge, listener: nil)
-        @bridge = bridge
-        @bridge = Support::EventFiringBridge.new(bridge, listener) if listener
+      def initialize(bridge: nil, listener: nil, **opts)
+        @devtools = nil
+        bridge ||= create_bridge(**opts)
+        @bridge = listener ? Support::EventFiringBridge.new(bridge, listener) : bridge
+        add_extensions(@bridge.browser)
       end
 
       def inspect
-        format '#<%s:0x%x browser=%s>', self.class, hash * 2, bridge.browser.inspect
+        format '#<%<class>s:0x%<hash>x browser=%<browser>s>', class: self.class, hash: hash * 2,
+                                                              browser: bridge.browser.inspect
+      end
+
+      #
+      # information about whether a remote end is in a state in which it can create new sessions,
+      # and may include additional meta information.
+      #
+      # @return [Hash]
+      #
+      def status
+        @bridge.status
       end
 
       #
@@ -88,6 +100,22 @@ module Selenium
       end
 
       #
+      # @return [Script]
+      # @see Script
+      #
+
+      def script(*args)
+        if args.any?
+          WebDriver.logger.deprecate('`Driver#script` as an alias for `#execute_script`',
+                                     '`Driver#execute_script`',
+                                     id: :driver_script)
+          execute_script(*args)
+        else
+          @script ||= WebDriver::Script.new(bridge)
+        end
+      end
+
+      #
       # @return [TargetLocator]
       # @see TargetLocator
       #
@@ -97,29 +125,21 @@ module Selenium
       end
 
       #
-      # @return [Options]
-      # @see Options
+      # @return [Manager]
+      # @see Manager
       #
 
       def manage
-        bridge.options
+        bridge.manage
       end
 
       #
-      # @return [ActionBuilder, W3CActionBuilder]
-      # @see ActionBuilder, W3CActionBuilder
+      # @return [ActionBuilder]
+      # @see ActionBuilder
       #
 
-      def action
-        bridge.action
-      end
-
-      def mouse
-        bridge.mouse
-      end
-
-      def keyboard
-        bridge.keyboard
+      def action(**opts)
+        bridge.action(**opts)
       end
 
       #
@@ -166,6 +186,9 @@ module Selenium
 
       def quit
         bridge.quit
+      ensure
+        @service_manager&.stop
+        @devtools&.close
       end
 
       #
@@ -173,7 +196,7 @@ module Selenium
       #
 
       def close
-        bridge.close
+        bridge&.close
       end
 
       #
@@ -232,25 +255,28 @@ module Selenium
         bridge.execute_async_script(script, *args)
       end
 
+      #
+      # @return [VirtualAuthenticator]
+      # @see VirtualAuthenticator
+      #
+
+      def add_virtual_authenticator(options)
+        bridge.add_virtual_authenticator(options)
+      end
+
       #-------------------------------- sugar  --------------------------------
 
       #
       #   driver.first(id: 'foo')
       #
 
-      alias_method :first, :find_element
+      alias first find_element
 
       #
       #   driver.all(class: 'bar') #=> [#<WebDriver::Element:0x1011c3b88, ...]
       #
 
-      alias_method :all, :find_elements
-
-      #
-      #   driver.script('function() { ... };')
-      #
-
-      alias_method :script, :execute_script
+      alias all find_elements
 
       # Get the first element matching the given selector. If given a
       # String or Symbol, it will be used as the id of the element.
@@ -284,12 +310,44 @@ module Selenium
       #
 
       def ref
-        nil
+        [:driver, nil]
       end
 
       private
 
       attr_reader :bridge
+
+      def create_bridge(caps:, url:, http_client: nil)
+        klass = caps['webSocketUrl'] ? Remote::BiDiBridge : Remote::Bridge
+        klass.new(http_client: http_client, url: url).tap do |bridge|
+          bridge.create_session(caps)
+        end
+      end
+
+      def service_url(service)
+        @service_manager = service.launch
+        @service_manager.uri
+      end
+
+      def screenshot
+        bridge.screenshot
+      end
+
+      def add_extensions(browser)
+        extensions = case browser
+                     when :chrome, :chrome_headless_shell, :msedge, :microsoftedge
+                       Chromium::Driver::EXTENSIONS
+                     when :firefox
+                       Firefox::Driver::EXTENSIONS
+                     when :safari, :safari_technology_preview
+                       Safari::Driver::EXTENSIONS
+                     when :ie, :internet_explorer
+                       IE::Driver::EXTENSIONS
+                     else
+                       []
+                     end
+        extensions.each { |extension| extend extension }
+      end
     end # Driver
   end # WebDriver
 end # Selenium

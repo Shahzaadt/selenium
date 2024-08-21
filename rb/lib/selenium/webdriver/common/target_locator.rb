@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -42,6 +42,33 @@ module Selenium
 
       def parent_frame
         @bridge.switch_to_parent_frame
+      end
+
+      #
+      # Switch to a new top-level browsing context
+      #
+      # @param type either :tab or :window
+      #
+
+      def new_window(type = :window)
+        raise ArgumentError, "Valid types are :tab and :window, received: #{type.inspect}" unless %i[window
+                                                                                                     tab].include?(type)
+
+        handle = @bridge.new_window(type)['handle']
+
+        if block_given?
+          execute_and_close = proc do
+            yield(self)
+            begin
+              @bridge.close
+            rescue Error::NoSuchWindowError
+              # window already closed
+            end
+          end
+          window(handle, &execute_and_close)
+        else
+          window(handle)
+        end
       end
 
       #

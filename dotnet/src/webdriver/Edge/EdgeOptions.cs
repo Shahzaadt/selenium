@@ -1,4 +1,4 @@
-﻿// <copyright file="EdgeOptions.cs" company="Microsoft">
+// <copyright file="EdgeOptions.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -16,39 +16,12 @@
 // limitations under the License.
 // </copyright>
 
+using OpenQA.Selenium.Chromium;
 using System;
-using System.Collections.Generic;
 using System.Globalization;
-using OpenQA.Selenium.Remote;
 
 namespace OpenQA.Selenium.Edge
 {
-    /// <summary>
-    /// Specifies the behavior of waiting for page loads in the Edge driver.
-    /// </summary>
-    public enum EdgePageLoadStrategy
-    {
-        /// <summary>
-        /// Indicates the behavior is not set.
-        /// </summary>
-        Default,
-
-        /// <summary>
-        /// Waits for pages to load and ready state to be 'complete'.
-        /// </summary>
-        Normal,
-
-        /// <summary>
-        /// Waits for pages to load and for ready state to be 'interactive' or 'complete'.
-        /// </summary>
-        Eager,
-
-        /// <summary>
-        /// Does not wait for pages to load, returning immediately.
-        /// </summary>
-        None
-    }
-
     /// <summary>
     /// Class to manage options specific to <see cref="EdgeDriver"/>
     /// </summary>
@@ -69,81 +42,64 @@ namespace OpenQA.Selenium.Edge
     /// RemoteWebDriver driver = new RemoteWebDriver(new Uri("http://localhost:4444/wd/hub"), options.ToCapabilities());
     /// </code>
     /// </example>
-    public class EdgeOptions : DriverOptions
+    public class EdgeOptions : ChromiumOptions
     {
-        private EdgePageLoadStrategy pageLoadStrategy = EdgePageLoadStrategy.Default;
-        private Dictionary<string, object> additionalCapabilities = new Dictionary<string, object>();
+        private const string DefaultBrowserNameValue = "MicrosoftEdge";
+        private const string WebViewBrowserNameValue = "webview2";
+        private const string EdgeOptionsCapabilityName = "edgeOptions";
 
         /// <summary>
-        /// Gets or sets the value for describing how the browser is to wait for pages to load in the Edge driver.
-        /// Defaults to <see cref="EdgePageLoadStrategy.Default"/>.
+        /// Initializes a new instance of the <see cref="EdgeOptions"/> class.
         /// </summary>
-        public EdgePageLoadStrategy PageLoadStrategy
+        public EdgeOptions() : base()
         {
-            get { return this.pageLoadStrategy; }
-            set { this.pageLoadStrategy = value; }
+            this.BrowserName = DefaultBrowserNameValue;
+        }
+
+        /// <summary>
+        /// Gets the vendor prefix to apply to Chromium-specific capability names.
+        /// </summary>
+        protected override string VendorPrefix
+        {
+            get { return "ms"; }
+        }
+
+        /// <summary>
+        /// Gets the name of the capability used to store Chromium options in
+        /// an <see cref="ICapabilities"/> object.
+        /// </summary>
+        public override string CapabilityName
+        {
+            get { return string.Format(CultureInfo.InvariantCulture, "{0}:{1}", this.VendorPrefix, EdgeOptionsCapabilityName); }
+        }
+
+        /// <summary>
+        /// Gets or sets whether to create a WebView session used for launching an Edge (Chromium) WebView-based app on desktop.
+        /// </summary>
+        public bool UseWebView
+        {
+            get { return this.BrowserName == WebViewBrowserNameValue; }
+            set { this.BrowserName = value ? WebViewBrowserNameValue : DefaultBrowserNameValue; }
         }
 
         /// <summary>
         /// Provides a means to add additional capabilities not yet added as type safe options
         /// for the Edge driver.
         /// </summary>
-        /// <param name="capabilityName">The name of the capability to add.</param>
-        /// <param name="capabilityValue">The value of the capability to add.</param>
+        /// <param name="optionName">The name of the capability to add.</param>
+        /// <param name="optionValue">The value of the capability to add.</param>
         /// <exception cref="ArgumentException">
         /// thrown when attempting to add a capability for which there is already a type safe option, or
-        /// when <paramref name="capabilityName"/> is <see langword="null"/> or the empty string.
+        /// when <paramref name="optionName"/> is <see langword="null"/> or the empty string.
         /// </exception>
-        /// <remarks>Calling <see cref="AddAdditionalCapability"/> where <paramref name="capabilityName"/>
-        /// has already been added will overwrite the existing value with the new value in <paramref name="capabilityValue"/></remarks>
-        public override void AddAdditionalCapability(string capabilityName, object capabilityValue)
+        /// <remarks>Calling <see cref="AddAdditionalEdgeOption(string, object)"/>
+        /// where <paramref name="optionName"/> has already been added will overwrite the
+        /// existing value with the new value in <paramref name="optionValue"/>.
+        /// Calling this method adds capabilities to the Edge-specific options object passed to
+        /// webdriver executable (property name 'ms:edgeOptions').</remarks>
+        public void AddAdditionalEdgeOption(string optionName, object optionValue)
         {
-            if (capabilityName == CapabilityType.PageLoadStrategy)
-            {
-                string message = string.Format(CultureInfo.InvariantCulture, "There is already an option for the {0} capability. Please use that instead.", capabilityName);
-                throw new ArgumentException(message, "capabilityName");
-            }
-
-            if (string.IsNullOrEmpty(capabilityName))
-            {
-                throw new ArgumentException("Capability name may not be null an empty string.", "capabilityName");
-            }
-
-            this.additionalCapabilities[capabilityName] = capabilityValue;
-        }
-
-        /// <summary>
-        /// Returns DesiredCapabilities for Edge with these options included as
-        /// capabilities. This copies the options. Further changes will not be
-        /// reflected in the returned capabilities.
-        /// </summary>
-        /// <returns>The DesiredCapabilities for Edge with these options.</returns>
-        public override ICapabilities ToCapabilities()
-        {
-            DesiredCapabilities capabilities = DesiredCapabilities.Edge();
-            if (this.pageLoadStrategy != EdgePageLoadStrategy.Default)
-            {
-                string pageLoadStrategySetting = "normal";
-                switch (this.pageLoadStrategy)
-                {
-                    case EdgePageLoadStrategy.Eager:
-                        pageLoadStrategySetting = "eager";
-                        break;
-
-                    case EdgePageLoadStrategy.None:
-                        pageLoadStrategySetting = "none";
-                        break;
-                }
-
-                capabilities.SetCapability(CapabilityType.PageLoadStrategy, pageLoadStrategySetting);
-            }
-
-            foreach (KeyValuePair<string, object> pair in this.additionalCapabilities)
-            {
-                capabilities.SetCapability(pair.Key, pair.Value);
-            }
-
-            return capabilities;
+            this.AddAdditionalChromiumOption(optionName, optionValue);
         }
     }
 }

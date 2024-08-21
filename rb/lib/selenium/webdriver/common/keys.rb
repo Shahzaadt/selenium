@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -22,7 +22,7 @@ module Selenium
     module Keys
       #
       # @see Element#send_keys
-      # @see http://www.google.com.au/search?&q=unicode+pua&btnG=Search
+      # @see http://www.google.com.au/search?&q=unicode+pua&btnK=Search
       #
 
       KEYS = {
@@ -90,6 +90,7 @@ module Selenium
         meta: "\ue03D",
         command: "\ue03D", # alias
         left_meta: "\ue03D", # alias
+        zenkaku_hankaku: "\uE040",
         right_shift: "\ue050",
         right_control: "\ue051",
         right_alt: "\ue052",
@@ -112,6 +113,7 @@ module Selenium
 
       def self.[](key)
         return KEYS[key] if KEYS[key]
+
         raise Error::UnsupportedOperationError, "no such key #{key.inspect}"
       end
 

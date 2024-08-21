@@ -1,4 +1,1 @@
-JRuby: JRuby: jruby 1.6.0.dev @ 2011-01-04 e1fe932
-Bundled gems: childprocess, json_pure, albacore, rspec (2.4.0), rake, ci_reporter, rubyzip
-
-How to update the jar: https://gist.github.com/733501
+jruby 9.4.5.0 (3.1.4) 2023-11-02 1abae2700f OpenJDK 64-Bit Server VM 17.0.7+7 on 17.0.7+7 +jit [x86_64-darwin]

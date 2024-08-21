@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,24 +17,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require 'net/http'
-
-require 'selenium/webdriver/chrome/service'
-require 'selenium/webdriver/chrome/driver'
-require 'selenium/webdriver/chrome/profile'
-require 'selenium/webdriver/chrome/options'
-
 module Selenium
   module WebDriver
     module Chrome
-      def self.driver_path=(path)
-        Platform.assert_executable path
-        @driver_path = path
-      end
-
-      def self.driver_path
-        @driver_path ||= nil
-      end
+      autoload :Features, 'selenium/webdriver/chrome/features'
+      autoload :Driver, 'selenium/webdriver/chrome/driver'
+      autoload :Profile, 'selenium/webdriver/chrome/profile'
+      autoload :Options, 'selenium/webdriver/chrome/options'
+      autoload :Service, 'selenium/webdriver/chrome/service'
 
       def self.path=(path)
         Platform.assert_executable path

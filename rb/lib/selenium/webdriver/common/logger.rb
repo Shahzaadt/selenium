@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -35,54 +35,43 @@ module Selenium
     #
     class Logger
       extend Forwardable
-      include ::Logger::Severity
 
-      def_delegators :@logger, :debug, :debug?,
-                     :info, :info?,
-                     :warn, :warn?,
-                     :error, :error?,
+      def_delegators :@logger,
+                     :close,
+                     :debug?,
+                     :info?,
+                     :warn?,
+                     :error?,
                      :fatal, :fatal?,
                      :level
 
-      def initialize
-        @logger = create_logger($stdout)
+      #
+      # @param [String] progname Allow child projects to use Selenium's Logger pattern
+      #
+      def initialize(progname = 'Selenium', default_level: nil, ignored: nil, allowed: nil)
+        default_level ||= $DEBUG || ENV.key?('DEBUG') ? :debug : :warn
+
+        @logger = create_logger(progname, level: default_level)
+        @ignored = Array(ignored)
+        @allowed = Array(allowed)
+        @first_warning = false
       end
 
+      def level=(level)
+        if level == :info && @logger.level == :info
+          info(':info is now the default log level, to see additional logging, set log level to :debug')
+        end
+
+        @logger.level = level
+      end
+
+      #
+      # Changes logger output to a new IO.
+      #
+      # @param [String] io
+      #
       def output=(io)
-        # `Logger#reopen` was added in Ruby 2.3
-        if @logger.respond_to?(:reopen)
-          @logger.reopen(io)
-        else
-          @logger = create_logger(io)
-        end
-      end
-
-      #
-      # For Ruby < 2.3 compatibility
-      # Based on https://github.com/ruby/ruby/blob/ruby_2_3/lib/logger.rb#L250
-      #
-
-      def level=(severity)
-        if severity.is_a?(Integer)
-          @logger.level = severity
-        else
-          case severity.to_s.downcase
-          when 'debug'.freeze
-            @logger.level = DEBUG
-          when 'info'.freeze
-            @logger.level = INFO
-          when 'warn'.freeze
-            @logger.level = WARN
-          when 'error'.freeze
-            @logger.level = ERROR
-          when 'fatal'.freeze
-            @logger.level = FATAL
-          when 'unknown'.freeze
-            @logger.level = UNKNOWN
-          else
-            raise ArgumentError, "invalid log level: #{severity}"
-          end
-        end
+        @logger.reopen(io)
       end
 
       #
@@ -97,34 +86,129 @@ module Selenium
       # @api private
       #
       def io
-        if debug?
-          @logger.instance_variable_get(:@logdev).instance_variable_get(:@dev)
-        else
-          File.new(Platform.null_device, 'w')
-        end
+        @logger.instance_variable_get(:@logdev).dev
       end
 
       #
-      # Marks code as deprecated with replacement.
+      # Will not log the provided ID.
+      #
+      # @param [Array, Symbol] ids
+      #
+      def ignore(*ids)
+        @ignored += Array(ids).flatten
+      end
+
+      #
+      # Will only log the provided ID.
+      #
+      # @param [Array, Symbol] ids
+      #
+      def allow(*ids)
+        @allowed += Array(ids).flatten
+      end
+
+      #
+      # Used to supply information of interest for debugging a problem
+      # Overrides default #debug to skip ignored messages by provided id
+      #
+      # @param [String] message
+      # @param [Symbol, Array<Symbol>] id
+      # @yield see #deprecate
+      #
+      def debug(message, id: [], &block)
+        discard_or_log(:debug, message, id, &block)
+      end
+
+      #
+      # Used to supply information of general interest
+      #
+      # @param [String] message
+      # @param [Symbol, Array<Symbol>] id
+      # @yield see #deprecate
+      #
+      def info(message, id: [], &block)
+        discard_or_log(:info, message, id, &block)
+      end
+
+      #
+      # Used to supply information that suggests an error occurred
+      #
+      # @param [String] message
+      # @param [Symbol, Array<Symbol>] id
+      # @yield see #deprecate
+      #
+      def error(message, id: [], &block)
+        discard_or_log(:error, message, id, &block)
+      end
+
+      #
+      # Used to supply information that suggests action be taken by user
+      #
+      # @param [String] message
+      # @param [Symbol, Array<Symbol>] id
+      # @yield see #deprecate
+      #
+      def warn(message, id: [], &block)
+        discard_or_log(:warn, message, id, &block)
+      end
+
+      #
+      # Marks code as deprecated with/without replacement.
       #
       # @param [String] old
-      # @param [String] new
+      # @param [String, nil] new
+      # @param [Symbol, Array<Symbol>] id
+      # @param [String] reference
+      # @yield appends additional message to end of provided template
       #
-      def deprecate(old, new)
-        warn "[DEPRECATION] #{old} is deprecated. Use #{new} instead."
+      def deprecate(old, new = nil, id: [], reference: '', &block)
+        id = Array(id)
+        return if @ignored.include?(:deprecations)
+
+        id << :deprecations if @allowed.include?(:deprecations)
+
+        message = +"[DEPRECATION] #{old} is deprecated"
+        message << if new
+                     ". Use #{new} instead."
+                   else
+                     ' and will be removed in a future release.'
+                   end
+        message << " See explanation for this deprecation: #{reference}." unless reference.empty?
+
+        discard_or_log(:warn, message, id, &block)
       end
 
       private
 
-      def create_logger(output)
-        logger = ::Logger.new(output)
-        logger.progname = 'Selenium'
-        logger.level = ($DEBUG ? DEBUG : WARN)
+      def create_logger(name, level:)
+        logger = ::Logger.new($stderr)
+        logger.progname = name
+        logger.level = level
         logger.formatter = proc do |severity, time, progname, msg|
-          "#{time.strftime('%F %T')} #{severity} #{progname} #{msg}\n"
+          "#{time.strftime('%F %T')} #{severity} #{progname} #{msg}\n".force_encoding('UTF-8')
         end
 
         logger
+      end
+
+      def discard_or_log(level, message, id)
+        id = Array(id)
+        return if (@ignored & id).any?
+        return if @allowed.any? && (@allowed & id).none?
+
+        return if ::Logger::Severity.const_get(level.upcase) < @logger.level
+
+        unless @first_warning
+          @first_warning = true
+          info("Details on how to use and modify Selenium logger:\n", id: [:logger_info]) do
+            "https://selenium.dev/documentation/webdriver/troubleshooting/logging\n"
+          end
+        end
+
+        msg = id.empty? ? message : "[#{id.map(&:inspect).join(', ')}] #{message} "
+        msg += " #{yield}" if block_given?
+
+        @logger.send(level) { msg }
       end
     end # Logger
   end # WebDriver

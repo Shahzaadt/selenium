@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -28,12 +28,10 @@ module Selenium
         def initialize(element)
           tag_name = element.tag_name
 
-          unless tag_name.casecmp('select').zero?
-            raise ArgumentError, "unexpected tag name #{tag_name.inspect}"
-          end
+          raise ArgumentError, "unexpected tag name #{tag_name.inspect}" unless tag_name.casecmp('select').zero?
 
           @element = element
-          @multi = ![nil, 'false'].include?(element.attribute(:multiple))
+          @multi = ![nil, 'false'].include?(element.dom_attribute(:multiple))
         end
 
         #
@@ -76,6 +74,7 @@ module Selenium
         def first_selected_option
           option = options.find(&:selected?)
           return option if option
+
           raise Error::NoSuchElementError, 'no options are selected'
         end
 
@@ -87,7 +86,7 @@ module Selenium
         #
         #     <option value="foo">Bar</option>
         #
-        # When slecting by :value, selects all options that have a value matching the argument. That is, when given "foo" this
+        # When selecting by :value, selects all options that have a value matching the argument. That is, when given "foo" this
         # would select an option like:
         #
         #     <option value="foo">Bar</option>
@@ -142,9 +141,7 @@ module Selenium
         #
 
         def select_all
-          unless multiple?
-            raise Error::UnsupportedOperationError, 'you may only select all options of a multi-select'
-          end
+          raise Error::UnsupportedOperationError, 'you may only select all options of a multi-select' unless multiple?
 
           options.each { |e| select_option e }
         end
@@ -156,9 +153,7 @@ module Selenium
         #
 
         def deselect_all
-          unless multiple?
-            raise Error::UnsupportedOperationError, 'you may only deselect all options of a multi-select'
-          end
+          raise Error::UnsupportedOperationError, 'you may only deselect all options of a multi-select' unless multiple?
 
           options.each { |e| deselect_option e }
         end
@@ -169,6 +164,7 @@ module Selenium
           opts = find_by_text text
 
           return select_options(opts) unless opts.empty?
+
           raise Error::NoSuchElementError, "cannot locate element with text: #{text.inspect}"
         end
 
@@ -176,6 +172,7 @@ module Selenium
           opts = find_by_index index
 
           return select_option(opts.first) unless opts.empty?
+
           raise Error::NoSuchElementError, "cannot locate element with index: #{index.inspect}"
         end
 
@@ -183,40 +180,43 @@ module Selenium
           opts = find_by_value value
 
           return select_options(opts) unless opts.empty?
+
           raise Error::NoSuchElementError, "cannot locate option with value: #{value.inspect}"
         end
 
         def deselect_by_text(text)
-          unless multiple?
-            raise Error::UnsupportedOperationError, 'you may only deselect option of a multi-select'
-          end
+          raise Error::UnsupportedOperationError, 'you may only deselect option of a multi-select' unless multiple?
+
           opts = find_by_text text
 
           return deselect_options(opts) unless opts.empty?
+
           raise Error::NoSuchElementError, "cannot locate element with text: #{text.inspect}"
         end
 
         def deselect_by_value(value)
-          unless multiple?
-            raise Error::UnsupportedOperationError, 'you may only deselect option of a multi-select'
-          end
+          raise Error::UnsupportedOperationError, 'you may only deselect option of a multi-select' unless multiple?
+
           opts = find_by_value value
 
           return deselect_options(opts) unless opts.empty?
+
           raise Error::NoSuchElementError, "cannot locate option with value: #{value.inspect}"
         end
 
         def deselect_by_index(index)
-          unless multiple?
-            raise Error::UnsupportedOperationError, 'you may only deselect option of a multi-select'
-          end
+          raise Error::UnsupportedOperationError, 'you may only deselect option of a multi-select' unless multiple?
+
           opts = find_by_index index
 
           return deselect_option(opts.first) unless opts.empty?
+
           raise Error::NoSuchElementError, "cannot locate option with index: #{index}"
         end
 
         def select_option(option)
+          raise Error::UnsupportedOperationError, 'You may not select a disabled option' unless option.enabled?
+
           option.click unless option.selected?
         end
 
@@ -244,7 +244,7 @@ module Selenium
           xpath = ".//option[normalize-space(.) = #{Escaper.escape text}]"
           opts = @element.find_elements(xpath: xpath)
 
-          return opts unless opts.empty? && text =~ /\s+/
+          return opts unless opts.empty? && /\s+/.match?(text)
 
           longest_word = text.split(/\s+/).max_by(&:length)
           if longest_word.empty?
@@ -255,11 +255,12 @@ module Selenium
           end
 
           return Array(candidates.find { |option| text == option.text }) unless multiple?
+
           candidates.select { |option| text == option.text }
         end
 
         def find_by_index(index)
-          options.select { |option| option.attribute(:index) == index.to_s }
+          options.select { |option| option.property(:index) == index }
         end
 
         def find_by_value(value)

@@ -62,6 +62,14 @@
     '../../deps.js'
   ];
 
+  if (location.pathname.lastIndexOf('/filez/_main/javascript/', 0) === 0) {
+    directoryPath = '';
+    files = [
+      '/filez/com_google_javascript_closure_library/closure/goog/base.js',
+      '/filez/_main/javascript/atoms/deps.js',
+    ];
+  }
+
   for (var j = 0; j < files.length; j++) {
     document.write('<script type="text/javascript" src="' +
         directoryPath + files[j] + '"></script>');

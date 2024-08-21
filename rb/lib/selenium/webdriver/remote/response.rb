@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,43 +20,26 @@
 module Selenium
   module WebDriver
     module Remote
+      #
       # @api private
+      #
+
       class Response
         attr_reader :code, :payload
-        attr_writer :payload
 
         def initialize(code, payload = nil)
-          @code    = code
+          @code = code
           @payload = payload || {}
 
           assert_ok
         end
 
         def error
-          klass = Error.for_code(status) || return
-
-          ex = klass.new(error_message)
-          ex.set_backtrace(caller)
-          add_backtrace ex
-
+          error, message, backtrace = process_error
+          klass = Error.for_error(error) || return
+          ex = klass.new(message)
+          add_cause(ex, error, backtrace)
           ex
-        end
-
-        def error_message
-          val = value
-
-          case val
-          when Hash
-            msg = val['message']
-            return 'unknown error' unless msg
-            msg << ": #{val['alert']['text'].inspect}" if val['alert'].is_a?(Hash) && val['alert']['text']
-            msg << " (#{val['class']})" if val['class']
-            msg
-          when String
-            val
-          else
-            "unknown error, status=#{status}: #{val.inspect}"
-          end
         end
 
         def [](key)
@@ -69,46 +52,26 @@ module Selenium
           e = error
           raise e if e
           return unless @code.nil? || @code >= 400
+
           raise Error::ServerError, self
         end
 
-        def add_backtrace(ex)
-          return unless value.is_a?(Hash) && value['stackTrace']
-
-          server_trace = value['stackTrace']
-
-          backtrace = server_trace.map do |frame|
-            next unless frame.is_a?(Hash)
-
-            file = frame['fileName']
-            line = frame['lineNumber']
-            meth = frame['methodName']
-
-            class_name = frame['className']
-            file = "#{class_name}(#{file})" if class_name
-
-            meth = 'unknown' if meth.nil? || meth.empty?
-
-            "[remote server] #{file}:#{line}:in `#{meth}'"
-          end.compact
-
-          ex.set_backtrace(backtrace + ex.backtrace)
+        def add_cause(ex, error, backtrace)
+          cause = Error::WebDriverError.new
+          cause.set_backtrace(backtrace)
+          raise ex, cause: cause
+        rescue Error.for_error(error)
+          ex
         end
 
-        def error_payload
-          # Even errors are wrapped in 'value' for w3c
-          # Grab 'value' key for error, leave original payload alone and let the bridge process
-          @error_payload ||= !@payload.key?('sessionId') ? @payload['value'] : @payload
-        end
+        def process_error
+          return unless self['value'].is_a?(Hash)
 
-        def status
-          return unless error_payload.is_a? Hash
-          @status ||= error_payload['status'] || error_payload['error']
-        end
-
-        def value
-          return unless error_payload.is_a? Hash
-          @value ||= error_payload['value'] || error_payload['message']
+          [
+            self['value']['error'],
+            self['value']['message'],
+            self['value']['stacktrace']
+          ]
         end
       end # Response
     end # Remote

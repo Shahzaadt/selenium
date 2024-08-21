@@ -15,34 +15,37 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from selenium.webdriver.common import utils
-from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
-from selenium.webdriver.remote.remote_connection import RemoteConnection
+from selenium.webdriver.chromium.webdriver import ChromiumDriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+
+from .options import Options
 from .service import Service
 
 
-class WebDriver(RemoteWebDriver):
+class WebDriver(ChromiumDriver):
+    """Controls the MSEdgeDriver and allows you to drive the browser."""
 
-    def __init__(self, executable_path='MicrosoftWebDriver.exe',
-                 capabilities=None, port=0, verbose=False, log_path=None):
-        self.port = port
-        if self.port == 0:
-            self.port = utils.free_port()
+    def __init__(
+        self,
+        options: Options = None,
+        service: Service = None,
+        keep_alive: bool = True,
+    ) -> None:
+        """Creates a new instance of the edge driver. Starts the service and
+        then creates new instance of edge driver.
 
-        self.edge_service = Service(executable_path, port=self.port, verbose=verbose, log_path=log_path)
-        self.edge_service.start()
+        :Args:
+         - options - this takes an instance of EdgeOptions
+         - service - Service object for handling the browser driver if you need to pass extra details
+         - keep_alive - Whether to configure EdgeRemoteConnection to use HTTP keep-alive.
+        """
+        service = service if service else Service()
+        options = options if options else Options()
 
-        if capabilities is None:
-            capabilities = DesiredCapabilities.EDGE
-
-        RemoteWebDriver.__init__(
-            self,
-            command_executor=RemoteConnection('http://localhost:%d' % self.port,
-                                              resolve_ip=False),
-            desired_capabilities=capabilities)
-        self._is_remote = False
-
-    def quit(self):
-        RemoteWebDriver.quit(self)
-        self.edge_service.stop()
+        super().__init__(
+            browser_name=DesiredCapabilities.EDGE["browserName"],
+            vendor_prefix="ms",
+            options=options,
+            service=service,
+            keep_alive=keep_alive,
+        )

@@ -1,5 +1,7 @@
-﻿using System;
 using NUnit.Framework;
+using OpenQA.Selenium.Environment;
+using OpenQA.Selenium.IE;
+using System;
 
 namespace OpenQA.Selenium.Remote
 {
@@ -30,7 +32,7 @@ namespace OpenQA.Selenium.Remote
         public void ShouldBeAbleToCreateRemoteWebDriverWithNoSlashAtEndOfUri()
         {
             Environment.EnvironmentManager.Instance.CloseCurrentDriver();
-            RemoteWebDriver noSlashDriver = new RemoteWebDriver(new Uri("http://127.0.0.1:6000/wd/hub"), DesiredCapabilities.InternetExplorer());
+            RemoteWebDriver noSlashDriver = new RemoteWebDriver(new Uri("http://127.0.0.1:6000/wd/hub"), new InternetExplorerOptions());
             noSlashDriver.Url = javascriptPage;
             noSlashDriver.Quit();
         }
@@ -62,7 +64,8 @@ namespace OpenQA.Selenium.Remote
 
         private void CreateTempFile(string content)
         {
-            testFile = new System.IO.FileInfo("webdriver.tmp");
+            string testFileName = System.IO.Path.Combine(EnvironmentManager.Instance.CurrentDirectory, "webdriver.tmp");
+            testFile = new System.IO.FileInfo(testFileName);
             if (testFile.Exists)
             {
                 testFile.Delete();

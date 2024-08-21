@@ -1,4 +1,4 @@
-﻿// <copyright file="ActionSequence.cs" company="WebDriver Committers">
+// <copyright file="ActionSequence.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -19,7 +19,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Text;
 
 namespace OpenQA.Selenium.Interactions
@@ -36,12 +35,21 @@ namespace OpenQA.Selenium.Interactions
         /// Initializes a new instance of the <see cref="ActionSequence"/> class.
         /// </summary>
         /// <param name="device">The input device that executes this sequence of actions.</param>
+        public ActionSequence(InputDevice device)
+            : this(device, 0)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ActionSequence"/> class.
+        /// </summary>
+        /// <param name="device">The input device that executes this sequence of actions.</param>
         /// <param name="initialSize">the initial size of the sequence.</param>
         public ActionSequence(InputDevice device, int initialSize)
         {
             if (device == null)
             {
-                throw new ArgumentNullException("device", "Input device cannot be null.");
+                throw new ArgumentNullException(nameof(device), "Input device cannot be null.");
             }
 
             this.device = device;
@@ -61,6 +69,14 @@ namespace OpenQA.Selenium.Interactions
         }
 
         /// <summary>
+        /// Gets the input device for this Action sequence.
+        /// </summary>
+        public InputDevice inputDevice
+        {
+            get { return this.inputDevice; }
+        }
+
+        /// <summary>
         /// Adds an action to the sequence.
         /// </summary>
         /// <param name="interactionToAdd">The action to add to the sequence.</param>
@@ -69,12 +85,12 @@ namespace OpenQA.Selenium.Interactions
         {
             if (interactionToAdd == null)
             {
-                throw new ArgumentNullException("interactionToAdd", "Interaction to add to sequence must not be null");
+                throw new ArgumentNullException(nameof(interactionToAdd), "Interaction to add to sequence must not be null");
             }
 
             if (!interactionToAdd.IsValidFor(this.device.DeviceKind))
             {
-                throw new ArgumentException(string.Format(CultureInfo.InvariantCulture, "Interaction {0} is invalid for device type {1}.", interactionToAdd.GetType(), this.device.DeviceKind), "interactionToAdd");
+                throw new ArgumentException(string.Format(CultureInfo.InvariantCulture, "Interaction {0} is invalid for device type {1}.", interactionToAdd.GetType(), this.device.DeviceKind), nameof(interactionToAdd));
             }
 
             this.interactions.Add(interactionToAdd);

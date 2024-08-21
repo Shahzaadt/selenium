@@ -19,9 +19,6 @@
 
 #include <string>
 
-#define ALERT_WINDOW_CLASS "#32770"
-#define HTML_DIALOG_WINDOW_CLASS "Internet Explorer_TridentDlgFrame"
-
 namespace webdriver {
 
 struct ProcessWindowInfo {
@@ -39,6 +36,9 @@ struct BrowserFactorySettings {
   int browser_attach_timeout;
   std::string initial_browser_url;
   std::string browser_command_line_switches;
+  bool attach_to_edge_ie; // Used to attach to EdgeChromium IE processes
+  std::string edge_executable_path;
+  bool ignore_process_match; // Ignores window handle process id match on IE Mode.
 };
 
 class BrowserFactory {
@@ -46,14 +46,16 @@ class BrowserFactory {
   BrowserFactory(void);
   virtual ~BrowserFactory(void);
 
+
   void Initialize(BrowserFactorySettings settings);
 
   DWORD LaunchBrowserProcess(std::string* error_message);
-  IWebBrowser2* CreateBrowser();
+  IWebBrowser2* CreateBrowser(bool is_protected_mode);
   bool AttachToBrowser(ProcessWindowInfo* procWinInfo,
                        std::string* error_message);
   bool GetDocumentFromWindowHandle(HWND window_handle,
                                    IHTMLDocument2** document);
+  bool IsBrowserProcessInitialized(DWORD process_id);
 
   bool ignore_protected_mode_settings(void) const { return this->ignore_protected_mode_settings_; }
   bool ignore_zoom_setting(void) const { return this->ignore_zoom_setting_; }
@@ -61,21 +63,33 @@ class BrowserFactory {
   bool force_createprocess_api(void) const { return this->force_createprocess_api_; }
   bool force_shell_windows_api(void) const { return this->force_shell_windows_api_; }
   int browser_attach_timeout(void) const { return this->browser_attach_timeout_; }
+  bool ignore_process_match(void) const { return this->ignore_process_match_;  }
   std::string initial_browser_url(void);
   std::string browser_command_line_switches(void);
 
   int browser_version(void) const { return this->ie_major_version_; }
 
   static BOOL CALLBACK FindChildWindowForProcess(HWND hwnd, LPARAM arg);
+  static BOOL CALLBACK FindEdgeChildWindowForProcess(HWND hwnd, LPARAM arg);
   static BOOL CALLBACK FindDialogWindowForProcess(HWND hwnd, LPARAM arg);
+  static BOOL CALLBACK FindIEBrowserHandles(HWND hwnd, LPARAM arg);
+  static BOOL CALLBACK FindEdgeBrowserHandles(HWND hwnd, LPARAM arg);
 
   static bool IsWindowsVistaOrGreater(void);
+  static int DeleteDirectory(const std::wstring &dir_name);
 
+  bool IsEdgeMode(void) const;
+  std::wstring GetEdgeTempDir(void);
  private:
   static BOOL CALLBACK FindBrowserWindow(HWND hwnd, LPARAM param);
+  static BOOL CALLBACK FindEdgeWindow(HWND hwnd, LPARAM param);
+  static BOOL CALLBACK FindEdgeWindowIgnoringProcessMatch(HWND hwnd, LPARAM param);
   static bool IsWindowsVersionOrGreater(unsigned short major_version,
                                         unsigned short minor_version,
                                         unsigned short service_pack);
+
+  static bool DirectoryExists(std::wstring& dir_name);
+  static bool CreateUniqueTempDir(std::wstring &temp_dir);
 
   UINT html_getobject_msg_;
   HINSTANCE oleacc_instance_handle_;
@@ -90,7 +104,8 @@ class BrowserFactory {
       ProcessWindowInfo* process_window_info,
       std::string* error_message);
 
-  void GetExecutableLocation(void);
+  void GetEdgeExecutableLocation(void);
+  void GetIEExecutableLocation(void);
   void GetIEVersion(void);
   bool ProtectedModeSettingsAreValid(void);
   int GetZoneProtectedModeSetting(const HKEY key_handle,
@@ -99,6 +114,8 @@ class BrowserFactory {
   int GetZoomLevel(IHTMLDocument2* document, IHTMLWindow2* window);
   void LaunchBrowserUsingCreateProcess(PROCESS_INFORMATION* proc_info,
                                        std::string* error_message);
+  void LaunchEdgeInIEMode(PROCESS_INFORMATION* proc_info,
+                          std::string* error_message);
   void LaunchBrowserUsingIELaunchURL(PROCESS_INFORMATION* proc_info,
                                      std::string* error_message);
   bool IsIELaunchURLAvailable(void);
@@ -118,6 +135,13 @@ class BrowserFactory {
 
   int ie_major_version_;
   std::wstring ie_executable_location_;
+  std::wstring edge_executable_located_location_;
+  bool ie_redirects_edge_;
+
+  bool edge_ie_mode_;
+  bool ignore_process_match_;
+  std::wstring edge_executable_location_;
+  std::wstring edge_user_data_dir_;
 };
 
 } // namespace webdriver

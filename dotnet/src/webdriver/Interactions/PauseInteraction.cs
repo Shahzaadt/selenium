@@ -1,4 +1,4 @@
-﻿// <copyright file="PauseInteraction.cs" company="WebDriver Committers">
+// <copyright file="PauseInteraction.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -18,8 +18,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Globalization;
 
 namespace OpenQA.Selenium.Interactions
 {
@@ -49,7 +48,7 @@ namespace OpenQA.Selenium.Interactions
         {
             if (duration < TimeSpan.Zero)
             {
-                throw new ArgumentException("Duration must be greater than or equal to zero", "duration");
+                throw new ArgumentException("Duration must be greater than or equal to zero", nameof(duration));
             }
 
             this.duration = duration;
@@ -78,6 +77,11 @@ namespace OpenQA.Selenium.Interactions
         public override bool IsValidFor(InputDeviceKind sourceDeviceKind)
         {
             return true;
+        }
+
+        public override string ToString()
+        {
+            return string.Format(CultureInfo.InvariantCulture, "Pause [duration: {0} ms]", this.duration.TotalMilliseconds);
         }
     }
 }

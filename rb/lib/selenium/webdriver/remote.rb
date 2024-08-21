@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,20 +18,22 @@
 # under the License.
 
 require 'uri'
-
-require 'selenium/webdriver/remote/bridge'
-require 'selenium/webdriver/remote/driver'
-require 'selenium/webdriver/remote/response'
 require 'selenium/webdriver/remote/server_error'
-require 'selenium/webdriver/remote/http/common'
-require 'selenium/webdriver/remote/http/default'
 
-require 'selenium/webdriver/remote/capabilities'
-require 'selenium/webdriver/remote/oss/bridge'
-require 'selenium/webdriver/remote/oss/commands'
-require 'selenium/webdriver/remote/oss/driver'
+module Selenium
+  module WebDriver
+    module Remote
+      autoload :Features,     'selenium/webdriver/remote/features'
+      autoload :Bridge,       'selenium/webdriver/remote/bridge'
+      autoload :BiDiBridge,   'selenium/webdriver/remote/bidi_bridge'
+      autoload :Driver,       'selenium/webdriver/remote/driver'
+      autoload :Response,     'selenium/webdriver/remote/response'
+      autoload :Capabilities, 'selenium/webdriver/remote/capabilities'
 
-require 'selenium/webdriver/remote/w3c/bridge'
-require 'selenium/webdriver/remote/w3c/capabilities'
-require 'selenium/webdriver/remote/w3c/commands'
-require 'selenium/webdriver/remote/w3c/driver'
+      module Http
+        autoload :Common, 'selenium/webdriver/remote/http/common'
+        autoload :Default, 'selenium/webdriver/remote/http/default'
+      end
+    end
+  end
+end

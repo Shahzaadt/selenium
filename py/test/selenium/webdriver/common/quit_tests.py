@@ -18,7 +18,8 @@
 import pytest
 
 
+@pytest.mark.no_driver_after_test
 def test_quit(driver, pages):
     driver.quit()
     with pytest.raises(Exception):
-        pages.load('simpleTest.html')
+        pages.load("simpleTest.html")

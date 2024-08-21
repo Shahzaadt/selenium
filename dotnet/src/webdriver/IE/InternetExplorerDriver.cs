@@ -16,9 +16,9 @@
 // limitations under the License.
 // </copyright>
 
-using System;
-using System.Collections.Generic;
 using OpenQA.Selenium.Remote;
+using System;
+using System.IO;
 
 namespace OpenQA.Selenium.IE
 {
@@ -60,7 +60,7 @@ namespace OpenQA.Selenium.IE
     /// }
     /// </code>
     /// </example>
-    public class InternetExplorerDriver : RemoteWebDriver
+    public class InternetExplorerDriver : WebDriver
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="InternetExplorerDriver"/> class.
@@ -141,8 +141,27 @@ namespace OpenQA.Selenium.IE
         /// <param name="options">The <see cref="InternetExplorerOptions"/> used to initialize the driver.</param>
         /// <param name="commandTimeout">The maximum amount of time to wait for each command.</param>
         public InternetExplorerDriver(InternetExplorerDriverService service, InternetExplorerOptions options, TimeSpan commandTimeout)
-            : base(new DriverServiceCommandExecutor(service, commandTimeout), ConvertOptionsToCapabilities(options))
+            : base(GenerateDriverServiceCommandExecutor(service, options, commandTimeout), ConvertOptionsToCapabilities(options))
         {
+        }
+
+        /// <summary>
+        /// Uses DriverFinder to set Service attributes if necessary when creating the command executor
+        /// </summary>
+        /// <param name="service"></param>
+        /// <param name="commandTimeout"></param>
+        /// <param name="options"></param>
+        /// <returns></returns>
+        private static ICommandExecutor GenerateDriverServiceCommandExecutor(DriverService service, DriverOptions options, TimeSpan commandTimeout)
+        {
+            if (service.DriverServicePath == null)
+            {
+                DriverFinder finder = new DriverFinder(options);
+                string fullServicePath = finder.GetDriverPath();
+                service.DriverServicePath = Path.GetDirectoryName(fullServicePath);
+                service.DriverServiceExecutableName = Path.GetFileName(fullServicePath);
+            }
+            return new DriverServiceCommandExecutor(service, commandTimeout);
         }
 
         /// <summary>
@@ -161,42 +180,11 @@ namespace OpenQA.Selenium.IE
             set { }
         }
 
-        /// <summary>
-        /// Gets the capabilities as a dictionary supporting legacy drivers.
-        /// </summary>
-        /// <param name="legacyCapabilities">The dictionary to return.</param>
-        /// <returns>A Dictionary consisting of the capabilities requested.</returns>
-        /// <remarks>This method is only transitional. Do not rely on it. It will be removed
-        /// once browser driver capability formats stabilize.</remarks>
-        protected override Dictionary<string, object> GetLegacyCapabilitiesDictionary(ICapabilities legacyCapabilities)
-        {
-            // Flatten the dictionary, if required to support old versions of the IE driver.
-            Dictionary<string, object> capabilitiesDictionary = new Dictionary<string, object>();
-            DesiredCapabilities capabilitiesObject = legacyCapabilities as DesiredCapabilities;
-            foreach (KeyValuePair<string, object> entry in capabilitiesObject.CapabilitiesDictionary)
-            {
-                if (entry.Key == InternetExplorerOptions.Capability)
-                {
-                    Dictionary<string, object> internetExplorerOptions = entry.Value as Dictionary<string, object>;
-                    foreach (KeyValuePair<string, object> option in internetExplorerOptions)
-                    {
-                        capabilitiesDictionary.Add(option.Key, option.Value);
-                    }
-                }
-                else
-                {
-                    capabilitiesDictionary.Add(entry.Key, entry.Value);
-                }
-            }
-
-            return capabilitiesDictionary;
-        }
-
         private static ICapabilities ConvertOptionsToCapabilities(InternetExplorerOptions options)
         {
             if (options == null)
             {
-                throw new ArgumentNullException("options", "options must not be null");
+                throw new ArgumentNullException(nameof(options), "options must not be null");
             }
 
             return options.ToCapabilities();

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,70 +17,107 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
     module Firefox
       describe Service do
-        let(:resp) { {'value' => {'sessionId' => 'foo', 'value' => Remote::Capabilities.firefox.as_json}} }
-        let(:service) { instance_double(Service, start: true, uri: 'http://example.com') }
-        let(:caps) { Remote::Capabilities.firefox }
-        let(:http) { instance_double(Remote::Http::Default, call: resp).as_null_object }
+        describe '#new' do
+          let(:service_path) { "/path/to/#{Service::EXECUTABLE}" }
 
-        before do
-          allow(Remote::Capabilities).to receive(:firefox).and_return(caps)
-          allow_any_instance_of(Service).to receive(:start)
-          allow_any_instance_of(Service).to receive(:binary_path)
+          before do
+            allow(Platform).to receive(:assert_executable)
+          end
+
+          it 'uses default port and nil path' do
+            service = described_class.new
+
+            expect(service.port).to eq Service::DEFAULT_PORT
+            expect(service.host).to eq Platform.localhost
+            expect(service.executable_path).to be_nil
+          end
+
+          it 'uses provided path and port' do
+            path = 'foo'
+            port = 5678
+
+            service = described_class.new(path: path, port: port)
+
+            expect(service.executable_path).to eq path
+            expect(service.port).to eq port
+          end
+
+          it 'does not create args by default' do
+            service = described_class.new
+
+            expect(service.extra_args).to be_empty
+          end
+
+          it 'uses sets log path to stdout' do
+            service = described_class.new(log: :stdout)
+
+            expect(service.log).to eq $stdout
+          end
+
+          it 'uses sets log path to stderr' do
+            service = described_class.new(log: :stderr)
+
+            expect(service.log).to eq $stderr
+          end
+
+          it 'sets log path as file location' do
+            service = described_class.new(log: '/path/to/log.txt')
+
+            expect(service.log).to eq '/path/to/log.txt'
+          end
+
+          it 'uses provided args' do
+            service = described_class.new(args: ['--foo', '--bar'])
+
+            expect(service.extra_args).to eq ['--foo', '--bar']
+          end
         end
 
-        it 'does not start driver when receives url' do
-          expect(Service).not_to receive(:new)
-          expect(http).to receive(:server_url=).with(URI.parse('http://example.com:4321'))
+        context 'when initializing driver' do
+          let(:driver) { Firefox::Driver }
+          let(:service) do
+            instance_double(described_class, launch: service_manager, executable_path: nil, 'executable_path=': nil,
+                                             class: described_class)
+          end
+          let(:service_manager) { instance_double(ServiceManager, uri: 'http://example.com') }
+          let(:bridge) { instance_double(Remote::Bridge, quit: nil, create_session: {}) }
+          let(:finder) { instance_double(DriverFinder, browser_path?: false, driver_path: '/path/to/driver') }
 
-          Driver.new(http_client: http, url: 'http://example.com:4321')
+          before do
+            allow(Remote::Bridge).to receive(:new).and_return(bridge)
+            allow(bridge).to receive(:browser).and_return(:firefox)
+          end
+
+          it 'is not created when :url is provided' do
+            expect {
+              driver.new(url: 'http://example.com:4321')
+            }.to raise_error(ArgumentError, "Can't initialize Selenium::WebDriver::Firefox::Driver with :url")
+          end
+
+          it 'is created when :url is not provided' do
+            allow(DriverFinder).to receive(:new).and_return(finder)
+            allow(described_class).to receive(:new).and_return(service)
+
+            driver.new
+
+            expect(described_class).to have_received(:new).with(no_args)
+          end
+
+          it 'accepts :service without creating a new instance' do
+            allow(DriverFinder).to receive(:new).and_return(finder)
+            allow(described_class).to receive(:new)
+
+            driver.new(service: service)
+
+            expect(described_class).not_to have_received(:new)
+          end
         end
-
-        it 'defaults to desired path and port' do
-          expect(Service).to receive(:new).with(Firefox.driver_path, Service::DEFAULT_PORT, {}).and_return(service)
-
-          Driver.new(http_client: http)
-        end
-
-        it 'accepts a driver path & port' do
-          path = '/foo/firefoxdriver'
-          port = '1234'
-          expect(Service).to receive(:new).with(path, '1234', {}).and_return(service)
-
-          Driver.new(http_client: http, driver_path: path, port: port)
-        end
-
-        it 'accepts driver options' do
-          driver_opts = {binary: '/path/to/bin',
-                         marionette_port: '9721',
-                         host: 'localhost',
-                         log: '/path/to/log'}
-
-          args = ["--binary=#{driver_opts[:binary]}",
-                  "–-log=#{driver_opts[:log]}",
-                  "–-marionette-port=#{driver_opts[:marionette_port]}",
-                  "–-host=#{driver_opts[:host]}"]
-
-          driver = Driver.new(http_client: http, driver_opts: driver_opts)
-          expect(driver.instance_variable_get("@service").instance_variable_get("@extra_args")).to eq args
-        end
-
-        it 'deprecates `service_args`' do
-          args = ["--binary=/path/to/bin",
-                  "–-log=/path/to/log",
-                  "–-marionette-port=9721",
-                  "–-host=localhost"]
-
-          expect(WebDriver.logger).to receive(:deprecate).with(':service_args', "driver_opts: {args: #{args}}")
-          @driver = Driver.new(http_client: http, service_args: args)
-          expect(@driver.instance_variable_get("@service").instance_variable_get("@extra_args")).to eq args
-        end
-
       end
     end # Firefox
   end # WebDriver

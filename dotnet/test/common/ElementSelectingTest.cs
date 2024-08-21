@@ -1,11 +1,11 @@
-﻿using NUnit.Framework;
+using NUnit.Framework;
 
 namespace OpenQA.Selenium
 {
     [TestFixture]
     public class ElementSelectingTest : DriverTestFixture
     {
-        private const string assertCannotPerformActionFormat_action_element = "Expected exception - should not be able to {0} element {1}"; 
+        private const string assertCannotPerformActionFormat_action_element = "Expected exception - should not be able to {0} element {1}";
 
         [Test]
         public void ShouldBeAbleToSelectAnEnabledUnselectedCheckbox()
@@ -101,11 +101,11 @@ namespace OpenQA.Selenium
             driver.Url = formsPage;
 
             IWebElement button = this.EnabledSelectedRadioButton;
-            Assert.IsTrue(button.Selected);
+            Assert.That(button.Selected, "Radio button should be selected");
 
             button.Click();
 
-            Assert.IsTrue(button.Selected);
+            Assert.That(button.Selected, "Radio button should be selected");
         }
 
         [Test]

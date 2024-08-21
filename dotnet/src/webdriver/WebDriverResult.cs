@@ -179,13 +179,58 @@ namespace OpenQA.Selenium
         InvalidSelector = 32,
 
         /// <summary>
+        /// A session was not created by the driver
+        /// </summary>
+        SessionNotCreated = 33,
+
+        /// <summary>
+        /// The requested move was outside the active view port
+        /// </summary>
+        MoveTargetOutOfBounds = 34,
+
+        /// <summary>
+        /// The XPath selector was invalid.
+        /// </summary>
+        InvalidXPathSelector = 51,
+
+        /// <summary>
         /// An insecure SSl certificate was specified.
         /// </summary>
-        InsecureCertificate = 33,
+        InsecureCertificate = 59,
+
+        /// <summary>
+        /// The element was not interactable
+        /// </summary>
+        ElementNotInteractable = 60,
+
+        /// <summary>
+        /// An invalid argument was passed to the command.
+        /// </summary>
+        InvalidArgument = 61,
 
         /// <summary>
         /// No cookie was found matching the name requested.
         /// </summary>
-        NoSuchCookie = 34
+        NoSuchCookie = 62,
+
+        /// <summary>
+        /// The driver was unable to capture the screen.
+        /// </summary>
+        UnableToCaptureScreen = 63,
+
+        /// <summary>
+        /// The click on the element was intercepted by a different element.
+        /// </summary>
+        ElementClickIntercepted = 64,
+
+        /// <summary>
+        /// The element does not have a shadow root.
+        /// </summary>
+        NoSuchShadowRoot = 65,
+
+        /// <summary>
+        /// The referenced shadow root is no longer attached to the DOM.
+        /// </summary>
+        DetachedShadowRoot = 66,
     }
 }

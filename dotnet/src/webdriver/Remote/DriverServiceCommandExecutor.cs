@@ -1,4 +1,4 @@
-﻿// <copyright file="DriverServiceCommandExecutor.cs" company="WebDriver Committers">
+// <copyright file="DriverServiceCommandExecutor.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -17,16 +17,18 @@
 // </copyright>
 
 using System;
+using System.Threading.Tasks;
 
 namespace OpenQA.Selenium.Remote
 {
     /// <summary>
     /// Provides a mechanism to execute commands on the browser
     /// </summary>
-    internal class DriverServiceCommandExecutor : ICommandExecutor
+    public class DriverServiceCommandExecutor : ICommandExecutor
     {
         private DriverService service;
         private HttpCommandExecutor internalExecutor;
+        private bool isDisposed;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DriverServiceCommandExecutor"/> class.
@@ -52,11 +54,37 @@ namespace OpenQA.Selenium.Remote
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="DriverServiceCommandExecutor"/> class.
+        /// </summary>
+        /// <param name="service">The <see cref="DriverService"/> that drives the browser.</param>
+        /// <param name="commandExecutor">The <see cref="HttpCommandExecutor"/> object used to execute commands,
+        /// communicating with the service via HTTP.</param>
+        public DriverServiceCommandExecutor(DriverService service, HttpCommandExecutor commandExecutor)
+        {
+            this.service = service;
+            this.internalExecutor = commandExecutor;
+        }
+
+        /// <summary>
         /// Gets the <see cref="CommandInfoRepository"/> object associated with this executor.
         /// </summary>
-        public CommandInfoRepository CommandInfoRepository
+        //public CommandInfoRepository CommandInfoRepository
+        //{
+        //    get { return this.internalExecutor.CommandInfoRepository; }
+        //}
+
+        public bool TryAddCommand(string commandName, CommandInfo info)
         {
-            get { return this.internalExecutor.CommandInfoRepository; }
+            return this.internalExecutor.TryAddCommand(commandName, info);
+        }
+
+        /// <summary>
+        /// Gets the <see cref="HttpCommandExecutor"/> that sends commands to the remote
+        /// end WebDriver implementation.
+        /// </summary>
+        public HttpCommandExecutor HttpExecutor
+        {
+            get { return this.internalExecutor; }
         }
 
         /// <summary>
@@ -66,9 +94,19 @@ namespace OpenQA.Selenium.Remote
         /// <returns>A response from the browser</returns>
         public Response Execute(Command commandToExecute)
         {
+            return Task.Run(() => this.ExecuteAsync(commandToExecute)).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Executes a command as an asynchronous task.
+        /// </summary>
+        /// <param name="commandToExecute">The command you wish to execute</param>
+        /// <returns>A task object representing the asynchronous operation</returns>
+        public async Task<Response> ExecuteAsync(Command commandToExecute)
+        {
             if (commandToExecute == null)
             {
-                throw new ArgumentNullException("commandToExecute", "Command to execute cannot be null");
+                throw new ArgumentNullException(nameof(commandToExecute), "Command to execute cannot be null");
             }
 
             Response toReturn = null;
@@ -81,17 +119,45 @@ namespace OpenQA.Selenium.Remote
             // command, so that we can get the finally block.
             try
             {
-                toReturn = this.internalExecutor.Execute(commandToExecute);
+                toReturn = await this.internalExecutor.ExecuteAsync(commandToExecute).ConfigureAwait(false);
             }
             finally
             {
                 if (commandToExecute.Name == DriverCommand.Quit)
                 {
-                    this.service.Dispose();
+                    this.Dispose();
                 }
             }
 
             return toReturn;
+        }
+
+        /// <summary>
+        /// Releases all resources used by the <see cref="DriverServiceCommandExecutor"/>.
+        /// </summary>
+        public void Dispose()
+        {
+            this.Dispose(true);
+        }
+
+        /// <summary>
+        /// Releases the unmanaged resources used by the <see cref="HttpCommandExecutor"/> and
+        /// optionally releases the managed resources.
+        /// </summary>
+        /// <param name="disposing"><see langword="true"/> to release managed and resources;
+        /// <see langword="false"/> to only release unmanaged resources.</param>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!this.isDisposed)
+            {
+                if (disposing)
+                {
+                    this.internalExecutor.Dispose();
+                    this.service.Dispose();
+                }
+
+                this.isDisposed = true;
+            }
         }
     }
 }

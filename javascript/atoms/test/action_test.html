@@ -5,6 +5,7 @@
   <script src="test_bootstrap.js"></script>
   <script type="text/javascript">
     goog.require('bot.action');
+    goog.require('bot.locators');
     goog.require('goog.Promise');
     goog.require('goog.Uri');
     goog.require('goog.dom');
@@ -56,6 +57,9 @@
           });
     }
 
+    var expectBlurEvent = goog.partial(expectEvent,
+        goog.events.EventType.BLUR);
+
     var expectChangeEvent = goog.partial(expectEvent,
         goog.events.EventType.CHANGE);
 
@@ -67,6 +71,9 @@
       assertEquals(eventType + ' event not fired expected # of times!',
           count, counts[eventType]);
     }
+
+    var assertBlurFired = goog.partial(assertEventFired,
+        goog.events.EventType.BLUR);
 
     var assertChangeFired = goog.partial(assertEventFired,
         goog.events.EventType.CHANGE);
@@ -113,8 +120,12 @@
         e.value = 'foobar';
         e.disabled = false;
         e.readOnly = false;
+        expectBlurEvent(e);
         expectChangeEvent(e);
         bot.action.clear(e);
+        if (goog.userAgent.IE) {
+          assertBlurFired();
+        }
         assertChangeFired();
         assertEquals('', e.value);
       });
@@ -187,6 +198,15 @@
       bot.action.clear(e);
       bot.action.type(e, "3");
       assertEquals("3", goog.dom.forms.getValue(e));
+    }
+
+    function testClearingAIframeContentEditableArea() {
+      var iframe = goog.dom.getElement('iframe');
+      var iframeDoc = goog.dom.getFrameContentDocument(iframe);
+
+      var e = bot.locators.findElement({ id: 'content-editable' }, iframeDoc);
+      bot.action.clear(e);
+      assertEquals('', bot.dom.getVisibleText(e));
     }
 
     function testSubmittingANonFormElementShouldResultInAnError() {
@@ -292,5 +312,7 @@
     <div id="child-not-content-editable">child not content editable
     </div>
   </div>
+  <iframe id="iframe" src="testdata/trusted_types_iframe.html">
+  </iframe>
 </body>
 </html>

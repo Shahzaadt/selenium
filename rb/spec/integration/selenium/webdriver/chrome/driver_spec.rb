@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -22,27 +22,166 @@ require_relative '../spec_helper'
 module Selenium
   module WebDriver
     module Chrome
-      compliant_on browser: :chrome do
-        describe Driver do
-          it 'should accept an array of custom command line arguments' do
-            begin
-              driver = Selenium::WebDriver.for :chrome, args: ['--user-agent=foo;bar']
-              driver.navigate.to url_for('click_jacker.html')
+      describe Driver, exclusive: [{bidi: false, reason: 'Not yet implemented with BiDi'}, {browser: :chrome}] do
+        it 'gets and sets network conditions' do
+          driver.network_conditions = {offline: false, latency: 56, throughput: 789}
+          expect(driver.network_conditions).to eq(
+            'offline' => false,
+            'latency' => 56,
+            'download_throughput' => 789,
+            'upload_throughput' => 789
+          )
+        end
 
-              ua = driver.execute_script 'return window.navigator.userAgent'
-              expect(ua).to eq('foo;bar')
-            ensure
-              driver.quit if driver
-            end
+        it 'sets download path' do
+          expect { driver.download_path = File.expand_path(__dir__) }.not_to raise_exception
+        end
+
+        it 'can execute CDP commands' do
+          res = driver.execute_cdp('Page.addScriptToEvaluateOnNewDocument', source: 'window.was_here="TW";')
+          expect(res).to have_key('identifier')
+
+          begin
+            driver.navigate.to url_for('formPage.html')
+
+            tw = driver.execute_script('return window.was_here')
+            expect(tw).to eq('TW')
+          ensure
+            driver.execute_cdp('Page.removeScriptToEvaluateOnNewDocument', identifier: res['identifier'])
+          end
+        end
+
+        describe 'PrintsPage' do
+          before(:all) { @headless = ENV.delete('HEADLESS') }
+          before { reset_driver!(args: ['--headless']) }
+
+          after(:all) do
+            quit_driver
+            ENV['HEADLESS'] = @headless
           end
 
-          it 'should raise ArgumentError if :args is not an Array' do
-            expect do
-              Selenium::WebDriver.for(:chrome, args: '--foo')
-            end.to raise_error(ArgumentError)
+          let(:magic_number) { 'JVBER' }
+
+          it 'returns base64 for print command' do
+            driver.navigate.to url_for('printPage.html')
+            expect(driver.print_page).to include(magic_number)
           end
 
-          it_behaves_like 'driver that can be started concurrently', :chrome
+          it 'prints with valid params' do
+            driver.navigate.to url_for('printPage.html')
+            expect(driver.print_page(orientation: 'landscape',
+                                     page_ranges: ['1-2'],
+                                     page: {width: 30})).to include(magic_number)
+          end
+
+          it 'saves pdf' do
+            driver.navigate.to url_for('printPage.html')
+
+            path = "#{Dir.tmpdir}/test#{SecureRandom.urlsafe_base64}.pdf"
+
+            driver.save_print_page path
+
+            expect(File.exist?(path)).to be true
+            expect(File.size(path)).to be_positive
+          ensure
+            FileUtils.rm_rf(path)
+          end
+        end
+
+        describe '#logs' do
+          before do
+            reset_driver!(logging_prefs: {browser: 'ALL',
+                                          driver: 'ALL',
+                                          performance: 'ALL'})
+            driver.navigate.to url_for('errors.html')
+          end
+
+          after(:all) { reset_driver! }
+
+          it 'can fetch available log types' do
+            expect(driver.logs.available_types).to include(:performance, :browser, :driver)
+          end
+
+          it 'can get the browser log' do
+            driver.find_element(tag_name: 'input').click
+
+            entries = driver.logs.get(:browser)
+            expect(entries).not_to be_empty
+            expect(entries.first).to be_a(LogEntry)
+          end
+
+          it 'can get the driver log' do
+            entries = driver.logs.get(:driver)
+            expect(entries).not_to be_empty
+            expect(entries.first).to be_a(LogEntry)
+          end
+
+          it 'can get the performance log' do
+            entries = driver.logs.get(:performance)
+            expect(entries).not_to be_empty
+            expect(entries.first).to be_a(LogEntry)
+          end
+        end
+
+        it 'manages network features' do
+          driver.network_conditions = {offline: false, latency: 56, download_throughput: 789, upload_throughput: 600}
+          conditions = driver.network_conditions
+          expect(conditions['offline']).to be false
+          expect(conditions['latency']).to eq 56
+          expect(conditions['download_throughput']).to eq 789
+          expect(conditions['upload_throughput']).to eq 600
+          driver.delete_network_conditions
+
+          error = /network conditions must be set before it can be retrieved/
+          expect { driver.network_conditions }.to raise_error(Error::UnknownError, error)
+
+          # Need to reset because https://bugs.chromium.org/p/chromedriver/issues/detail?id=4790
+          reset_driver!
+        end
+
+        # This requires cast sinks to run
+        it 'casts' do
+          # Does not get list correctly the first time for some reason
+          driver.cast_sinks
+          sleep 2
+          sinks = driver.cast_sinks
+          unless sinks.empty?
+            device_name = sinks.first['name']
+            driver.start_cast_tab_mirroring(device_name)
+            expect { driver.stop_casting(device_name) }.not_to raise_exception
+          end
+        end
+
+        def get_permission(name)
+          driver.execute_async_script('callback = arguments[arguments.length - 1];' \
+                                      'callback(navigator.permissions.query({name: arguments[0]}));', name)['state']
+        end
+
+        it 'can set single permissions' do
+          driver.navigate.to url_for('xhtmlTest.html')
+
+          expect(get_permission('clipboard-read')).to eq('prompt')
+          expect(get_permission('clipboard-write')).to eq('granted')
+
+          driver.add_permission('clipboard-read', 'denied')
+          driver.add_permission('clipboard-write', 'prompt')
+
+          expect(get_permission('clipboard-read')).to eq('denied')
+          expect(get_permission('clipboard-write')).to eq('prompt')
+
+          reset_driver!
+        end
+
+        it 'can set multiple permissions' do
+          driver.navigate.to url_for('xhtmlTest.html')
+
+          expect(get_permission('clipboard-read')).to eq('prompt')
+          expect(get_permission('clipboard-write')).to eq('granted')
+
+          driver.add_permissions('clipboard-read' => 'denied', 'clipboard-write' => 'prompt')
+
+          expect(get_permission('clipboard-read')).to eq('denied')
+          expect(get_permission('clipboard-write')).to eq('prompt')
         end
       end
     end # Chrome

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -22,10 +22,32 @@ require_relative '../spec_helper'
 module Selenium
   module WebDriver
     module Safari
-      compliant_on browser: :safari do
-        not_compliant_on browser: :safari do
-          describe Driver do
-            it_behaves_like 'driver that can be started concurrently', :safari
+      describe Driver, exclusive: [{bidi: false, reason: 'Not yet implemented with BiDi'},
+                                   {browser: %i[safari safari_preview]}] do
+        it 'gets and sets permissions' do
+          driver.permissions = {'getUserMedia' => false}
+          expect(driver.permissions).to eq('getUserMedia' => false)
+        end
+
+        describe '#technology_preview!' do
+          before(:all) { quit_driver }
+
+          after do
+            Service.driver_path = nil
+            Safari.use_technology_preview = nil
+          end
+
+          it 'sets before options', exclusive: {browser: :safari_preview} do
+            Safari.technology_preview!
+            local_driver = WebDriver.for :safari
+            expect(local_driver.capabilities.browser_name).to eq 'Safari Technology Preview'
+          end
+
+          it 'sets after options', exclusive: {browser: :safari_preview} do
+            options = Options.safari
+            Safari.technology_preview!
+            local_driver = WebDriver.for :safari, options: options
+            expect(local_driver.capabilities.browser_name).to eq 'Safari Technology Preview'
           end
         end
       end

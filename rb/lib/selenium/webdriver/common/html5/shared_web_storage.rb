@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -26,12 +26,13 @@ module Selenium
         def key?(key)
           keys.include? key
         end
-        alias_method :member?, :key?
-        alias_method :has_key?, :key?
+        alias member? key?
+        alias has_key? key?
 
         def fetch(key)
           return self[key] if key? key
           return yield(key) if block_given?
+
           raise KeyError, "missing key #{key.inspect}"
         end
 

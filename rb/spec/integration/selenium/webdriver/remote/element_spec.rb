@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,27 +21,48 @@ require_relative '../spec_helper'
 
 module Selenium
   module WebDriver
-    compliant_on driver: :remote do
-      describe Element do
-        before do
-          driver.file_detector = ->(_str) { __FILE__ }
+    describe Element, exclusive: {bidi: false, reason: 'Not yet implemented with BiDi'} do
+      before do
+        driver.file_detector = ->(filename) { File.join(__dir__, filename) }
+      end
+
+      after { driver.file_detector = nil }
+
+      context 'when uploading one file' do
+        it 'uses the provided file detector', exclusive: {driver: :remote},
+                                              flaky: {browser: :safari,
+                                                      ci: :github,
+                                                      reason: 'unreliable with downloads'} do
+          driver.navigate.to url_for('upload.html')
+
+          driver.find_element(id: 'upload').send_keys('element_spec.rb')
+          driver.find_element(id: 'go').click
+          wait.until { driver.find_element(id: 'upload_label').displayed? }
+
+          driver.switch_to.frame('upload_target')
+          wait.until { !driver.find_element(xpath: '//body').text.empty? }
+
+          body = driver.find_element(xpath: '//body')
+          expect(body.text.scan('Licensed to the Software Freedom Conservancy').count).to eq(3)
         end
+      end
 
-        after do
-          driver.file_detector = nil
-        end
+      context 'when uploading multiple files' do
+        it 'uses the provided file detector', exclusive: {driver: :remote},
+                                              flaky: {browser: :safari,
+                                                      ci: :github,
+                                                      reason: 'unreliable with downloads'} do
+          driver.navigate.to url_for('upload_multiple.html')
 
-        compliant_on browser: [:chrome, :ff_esr] do
-          it 'uses the file detector' do
-            driver.navigate.to url_for('upload.html')
+          driver.find_element(id: 'upload').send_keys("driver_spec.rb\nelement_spec.rb")
+          driver.find_element(id: 'go').click
+          wait.until { driver.find_element(id: 'upload_label').displayed? }
 
-            driver.find_element(id: 'upload').send_keys('random string')
-            driver.find_element(id: 'go').submit
+          driver.switch_to.frame('upload_target')
+          wait.until { !driver.find_element(xpath: '//body').text.empty? }
 
-            driver.switch_to.frame('upload_target')
-            body = driver.find_element(xpath: '//body')
-            expect(body.text).to include('uses the set file detector')
-          end
+          body = driver.find_element(xpath: '//body')
+          expect(body.text.scan('Licensed to the Software Freedom Conservancy').count).to eq(5)
         end
       end
     end

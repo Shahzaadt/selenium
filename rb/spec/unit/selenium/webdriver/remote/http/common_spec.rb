@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,22 +17,62 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
     module Remote
       module Http
         describe Common do
-          it 'sends non-empty body header for POST requests without command data' do
-            common = Common.new
+          subject(:common) do
+            common = described_class.new
             common.server_url = URI.parse('http://server')
+            allow(common).to receive(:request)
 
-            expect(common).to receive(:request)
+            common
+          end
+
+          after do
+            described_class.extra_headers = nil
+            described_class.user_agent = nil
+          end
+
+          it 'sends non-empty body header for POST requests without command data' do
+            common.call(:post, 'clear', nil)
+
+            expect(common).to have_received(:request)
               .with(:post, URI.parse('http://server/clear'),
                     hash_including('Content-Length' => '2'), '{}')
+          end
 
-            common.call(:post, 'clear', nil)
+          it 'sends a standard User-Agent by default' do
+            user_agent_regexp = %r{\Aselenium/#{WebDriver::VERSION} \(ruby #{Platform.os}\)\z}
+
+            common.call(:post, 'session', nil)
+
+            expect(common).to have_received(:request)
+              .with(:post, URI.parse('http://server/session'),
+                    hash_including('User-Agent' => a_string_matching(user_agent_regexp)), '{}')
+          end
+
+          it 'allows registering extra headers' do
+            described_class.extra_headers = {'Foo' => 'bar'}
+
+            common.call(:post, 'session', nil)
+
+            expect(common).to have_received(:request)
+              .with(:post, URI.parse('http://server/session'),
+                    hash_including('Foo' => 'bar'), '{}')
+          end
+
+          it 'allows overriding default User-Agent' do
+            described_class.user_agent = 'rspec/1.0 (ruby 3.2)'
+
+            common.call(:post, 'session', nil)
+
+            expect(common).to have_received(:request)
+              .with(:post, URI.parse('http://server/session'),
+                    hash_including('User-Agent' => 'rspec/1.0 (ruby 3.2)'), '{}')
           end
         end
       end # Http

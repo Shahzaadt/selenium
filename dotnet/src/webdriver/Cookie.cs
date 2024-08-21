@@ -16,11 +16,12 @@
 // limitations under the License.
 // </copyright>
 
+using OpenQA.Selenium.Internal;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using Newtonsoft.Json;
-using OpenQA.Selenium.Internal;
+using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace OpenQA.Selenium
 {
@@ -28,57 +29,44 @@ namespace OpenQA.Selenium
     /// Represents a cookie in the browser.
     /// </summary>
     [Serializable]
-    [JsonObject(MemberSerialization = MemberSerialization.OptIn)]
     public class Cookie
     {
         private string cookieName;
         private string cookieValue;
         private string cookiePath;
         private string cookieDomain;
+        private string sameSite;
+        private bool isHttpOnly;
+        private bool secure;
         private DateTime? cookieExpiry;
+        private readonly string[] sameSiteValues = { "Strict", "Lax", "None" };
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="Cookie"/> class with a specific name,
-        /// value, domain, path and expiration date.
+        /// Initializes a new instance of the <see cref="Cookie"/> class with a specific name and value.
         /// </summary>
         /// <param name="name">The name of the cookie.</param>
         /// <param name="value">The value of the cookie.</param>
-        /// <param name="domain">The domain of the cookie.</param>
-        /// <param name="path">The path of the cookie.</param>
-        /// <param name="expiry">The expiration date of the cookie.</param>
         /// <exception cref="ArgumentException">If the name is <see langword="null"/> or an empty string,
         /// or if it contains a semi-colon.</exception>
         /// <exception cref="ArgumentNullException">If the value is <see langword="null"/>.</exception>
-        public Cookie(string name, string value, string domain, string path, DateTime? expiry)
+        public Cookie(string name, string value)
+            : this(name, value, null)
         {
-            if (string.IsNullOrEmpty(name))
-            {
-                throw new ArgumentException("Cookie name cannot be null or empty string", "name");
-            }
+        }
 
-            if (value == null)
-            {
-                throw new ArgumentNullException("value", "Cookie value cannot be null");
-            }
-
-            if (name.IndexOf(';') != -1)
-            {
-                throw new ArgumentException("Cookie names cannot contain a ';': " + name, "name");
-            }
-
-            this.cookieName = name;
-            this.cookieValue = value;
-            if (!string.IsNullOrEmpty(path))
-            {
-                this.cookiePath = path;
-            }
-
-            this.cookieDomain = StripPort(domain);
-
-            if (expiry != null)
-            {
-                this.cookieExpiry = expiry;
-            }
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Cookie"/> class with a specific name,
+        /// value, and path.
+        /// </summary>
+        /// <param name="name">The name of the cookie.</param>
+        /// <param name="value">The value of the cookie.</param>
+        /// <param name="path">The path of the cookie.</param>
+        /// <exception cref="ArgumentException">If the name is <see langword="null"/> or an empty string,
+        /// or if it contains a semi-colon.</exception>
+        /// <exception cref="ArgumentNullException">If the value is <see langword="null"/>.</exception>
+        public Cookie(string name, string value, string path)
+            : this(name, value, path, null)
+        {
         }
 
         /// <summary>
@@ -99,36 +87,90 @@ namespace OpenQA.Selenium
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Cookie"/> class with a specific name,
-        /// value, and path.
+        /// value, domain, path and expiration date.
         /// </summary>
         /// <param name="name">The name of the cookie.</param>
         /// <param name="value">The value of the cookie.</param>
+        /// <param name="domain">The domain of the cookie.</param>
         /// <param name="path">The path of the cookie.</param>
+        /// <param name="expiry">The expiration date of the cookie.</param>
         /// <exception cref="ArgumentException">If the name is <see langword="null"/> or an empty string,
         /// or if it contains a semi-colon.</exception>
         /// <exception cref="ArgumentNullException">If the value is <see langword="null"/>.</exception>
-        public Cookie(string name, string value, string path)
-            : this(name, value, path, null)
+        public Cookie(string name, string value, string domain, string path, DateTime? expiry)
+            : this(name, value, domain, path, expiry, false, false, null)
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="Cookie"/> class with a specific name and value.
+        /// Initializes a new instance of the <see cref="ReturnedCookie"/> class with a specific name,
+        /// value, domain, path and expiration date.
         /// </summary>
         /// <param name="name">The name of the cookie.</param>
         /// <param name="value">The value of the cookie.</param>
-        /// <exception cref="ArgumentException">If the name is <see langword="null"/> or an empty string,
-        /// or if it contains a semi-colon.</exception>
-        /// <exception cref="ArgumentNullException">If the value is <see langword="null"/>.</exception>
-        public Cookie(string name, string value)
-            : this(name, value, null, null)
+        /// <param name="domain">The domain of the cookie.</param>
+        /// <param name="path">The path of the cookie.</param>
+        /// <param name="expiry">The expiration date of the cookie.</param>
+        /// <param name="secure"><see langword="true"/> if the cookie is secure; otherwise <see langword="false"/></param>
+        /// <param name="isHttpOnly"><see langword="true"/> if the cookie is an HTTP-only cookie; otherwise <see langword="false"/></param>
+        /// <param name="sameSite">The SameSite value of cookie.</param>
+        /// <exception cref="ArgumentException">If the name and value are both an empty string,
+        /// if the name contains a semi-colon, or if same site value is not valid.</exception>
+        /// <exception cref="ArgumentNullException">If the name, value or currentUrl is <see langword="null"/>.</exception>
+        public Cookie(string name, string value, string domain, string path, DateTime? expiry, bool secure, bool isHttpOnly, string sameSite)
         {
+            if (name == null)
+            {
+                throw new ArgumentNullException(nameof(value), "Cookie name cannot be null");
+            }
+
+            if (value == null)
+            {
+                throw new ArgumentNullException(nameof(value), "Cookie value cannot be null");
+            }
+
+            if (name == string.Empty && value == string.Empty)
+            {
+                throw new ArgumentException("Cookie name and value cannot both be empty string");
+            }
+
+            if (name.IndexOf(';') != -1)
+            {
+                throw new ArgumentException("Cookie names cannot contain a ';': " + name, nameof(name));
+            }
+
+            this.cookieName = name;
+            this.cookieValue = value;
+            if (!string.IsNullOrEmpty(path))
+            {
+                this.cookiePath = path;
+            }
+
+            this.cookieDomain = StripPort(domain);
+
+            if (expiry != null)
+            {
+                this.cookieExpiry = expiry;
+            }
+
+            this.isHttpOnly = isHttpOnly;
+            this.secure = secure;
+
+            if (!string.IsNullOrEmpty(sameSite))
+            {
+                if (!sameSiteValues.Contains(sameSite))
+                {
+                    throw new ArgumentException("Invalid sameSite cookie value. It should either \"Lax\", \"Strict\" or \"None\" ", nameof(sameSite));
+                }
+
+                this.sameSite = sameSite;
+            }
         }
 
         /// <summary>
         /// Gets the name of the cookie.
         /// </summary>
-        [JsonProperty("name")]
+        [JsonPropertyName("name")]
         public string Name
         {
             get { return this.cookieName; }
@@ -137,7 +179,7 @@ namespace OpenQA.Selenium
         /// <summary>
         /// Gets the value of the cookie.
         /// </summary>
-        [JsonProperty("value")]
+        [JsonPropertyName("value")]
         public string Value
         {
             get { return this.cookieValue; }
@@ -146,7 +188,8 @@ namespace OpenQA.Selenium
         /// <summary>
         /// Gets the domain of the cookie.
         /// </summary>
-        [JsonProperty("domain", NullValueHandling = NullValueHandling.Ignore)]
+        [JsonPropertyName("domain")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string Domain
         {
             get { return this.cookieDomain; }
@@ -155,7 +198,8 @@ namespace OpenQA.Selenium
         /// <summary>
         /// Gets the path of the cookie.
         /// </summary>
-        [JsonProperty("path", NullValueHandling = NullValueHandling.Ignore)]
+        [JsonPropertyName("path")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public virtual string Path
         {
             get { return this.cookiePath; }
@@ -164,24 +208,36 @@ namespace OpenQA.Selenium
         /// <summary>
         /// Gets a value indicating whether the cookie is secure.
         /// </summary>
-        [JsonProperty("secure")]
+        [JsonPropertyName("secure")]
         public virtual bool Secure
         {
-            get { return false; }
+            get { return this.secure; }
         }
 
         /// <summary>
         /// Gets a value indicating whether the cookie is an HTTP-only cookie.
         /// </summary>
-        [JsonProperty("httpOnly")]
+        [JsonPropertyName("httpOnly")]
         public virtual bool IsHttpOnly
         {
-            get { return false; }
+            get { return this.isHttpOnly; }
+
+        }
+
+        /// <summary>
+        /// Gets the SameSite setting for the cookie.
+        /// </summary>
+        [JsonPropertyName("sameSite")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public virtual string SameSite
+        {
+            get { return this.sameSite; }
         }
 
         /// <summary>
         /// Gets the expiration date of the cookie.
         /// </summary>
+        [JsonIgnore]
         public DateTime? Expiry
         {
             get { return this.cookieExpiry; }
@@ -192,7 +248,9 @@ namespace OpenQA.Selenium
         /// </summary>
         /// <remarks>This property only exists so that the JSON serializer can serialize a
         /// cookie without resorting to a custom converter.</remarks>
-        [JsonProperty("expiry", NullValueHandling = NullValueHandling.Ignore)]
+        [JsonPropertyName("expiry")]
+        [JsonInclude]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         internal long? ExpirySeconds
         {
             get
@@ -218,11 +276,15 @@ namespace OpenQA.Selenium
         {
             if (rawCookie == null)
             {
-                throw new ArgumentNullException("rawCookie", "Dictionary cannot be null");
+                throw new ArgumentNullException(nameof(rawCookie), "Dictionary cannot be null");
             }
 
             string name = rawCookie["name"].ToString();
-            string value = rawCookie["value"].ToString();
+            string value = string.Empty;
+            if (rawCookie["value"] != null)
+            {
+                value = rawCookie["value"].ToString();
+            }
 
             string path = "/";
             if (rawCookie.ContainsKey("path") && rawCookie["path"] != null)
@@ -239,18 +301,7 @@ namespace OpenQA.Selenium
             DateTime? expires = null;
             if (rawCookie.ContainsKey("expiry") && rawCookie["expiry"] != null)
             {
-                double seconds = 0;
-                if (double.TryParse(rawCookie["expiry"].ToString(), NumberStyles.Number, CultureInfo.InvariantCulture,  out seconds))
-                {
-                    try
-                    {
-                        expires = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds).ToLocalTime();
-                    }
-                    catch (ArgumentOutOfRangeException)
-                    {
-                        expires = DateTime.MaxValue.ToLocalTime();
-                    }
-                }
+                expires = ConvertExpirationTime(rawCookie["expiry"].ToString());
             }
 
             bool secure = false;
@@ -265,7 +316,13 @@ namespace OpenQA.Selenium
                 isHttpOnly = bool.Parse(rawCookie["httpOnly"].ToString());
             }
 
-            return new ReturnedCookie(name, value, domain, path, expires, secure, isHttpOnly);
+            string sameSite = null;
+            if (rawCookie.ContainsKey("sameSite") && rawCookie["sameSite"] != null)
+            {
+                sameSite = rawCookie["sameSite"].ToString();
+            }
+
+            return new ReturnedCookie(name, value, domain, path, expires, secure, isHttpOnly, sameSite);
         }
 
         /// <summary>
@@ -277,7 +334,8 @@ namespace OpenQA.Selenium
             return this.cookieName + "=" + this.cookieValue
                 + (this.cookieExpiry == null ? string.Empty : "; expires=" + this.cookieExpiry.Value.ToUniversalTime().ToString("ddd MM dd yyyy hh:mm:ss UTC", CultureInfo.InvariantCulture))
                     + (string.IsNullOrEmpty(this.cookiePath) ? string.Empty : "; path=" + this.cookiePath)
-                    + (string.IsNullOrEmpty(this.cookieDomain) ? string.Empty : "; domain=" + this.cookieDomain);
+                    + (string.IsNullOrEmpty(this.cookieDomain) ? string.Empty : "; domain=" + this.cookieDomain)
+                    + "; isHttpOnly= " + this.isHttpOnly + "; secure= " + this.secure + (string.IsNullOrEmpty(this.sameSite) ? string.Empty : "; sameSite=" + this.sameSite);
         }
 
         /// <summary>
@@ -324,6 +382,25 @@ namespace OpenQA.Selenium
         private static string StripPort(string domain)
         {
             return string.IsNullOrEmpty(domain) ? null : domain.Split(':')[0];
+        }
+
+        private static DateTime? ConvertExpirationTime(string expirationTime)
+        {
+            DateTime? expires = null;
+            double seconds = 0;
+            if (double.TryParse(expirationTime, NumberStyles.Number, CultureInfo.InvariantCulture, out seconds))
+            {
+                try
+                {
+                    expires = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds).ToLocalTime();
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    expires = DateTime.MaxValue.ToLocalTime();
+                }
+            }
+
+            return expires;
         }
     }
 }

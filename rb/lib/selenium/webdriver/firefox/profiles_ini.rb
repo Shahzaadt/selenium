@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -52,7 +52,7 @@ module Selenium
             when /^\[Profile/
               name, path = nil if path_for(name, is_relative, path)
             when /^Name=(.+)$/
-              name = Regexp.last_match(1).strip
+              name = Regexp.last_match(1)&.strip
             when /^IsRelative=(.+)$/
               is_relative = Regexp.last_match(1).strip == '1'
             when /^Path=(.+)$/
@@ -65,6 +65,7 @@ module Selenium
 
         def path_for(name, is_relative, path)
           return unless [name, path].any?
+
           is_relative ? File.join(Util.app_data_path, path) : path
         end
       end # ProfilesIni

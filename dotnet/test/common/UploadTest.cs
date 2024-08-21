@@ -26,15 +26,8 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.WindowsPhone, "Does not yet support file uploads")]
         public void ShouldAllowFileUploading()
         {
-            if (TestUtilities.IsMarionette(driver))
-            {
-                Assert.Ignore("Marionette does not upload with upload element.");
-            }
-
             driver.Url = uploadPage;
             driver.FindElement(By.Id("upload")).SendKeys(testFile.FullName);
             driver.FindElement(By.Id("go")).Submit();
@@ -42,24 +35,61 @@ namespace OpenQA.Selenium
             driver.SwitchTo().Frame("upload_target");
 
             IWebElement body = null;
-            WaitFor(() => {
-                body = driver.FindElement(By.XPath("//body"));
-                return LoremIpsumText == body.Text;
+            WaitFor(() =>
+            {
+                body = driver.FindElement(By.CssSelector("body"));
+                return body.Text.Contains(LoremIpsumText);
             }, "Page source is: " + driver.PageSource);
-            Assert.IsTrue(LoremIpsumText == body.Text, "Page source is: " + driver.PageSource);
-            driver.Url = "about:blank";
+            Assert.That(body.Text, Is.EqualTo(LoremIpsumText), "Page source is: " + driver.PageSource);
         }
 
         [Test]
-        [Category("Javascript")]
-        [IgnoreBrowser(Browser.WindowsPhone, "Does not yet support file uploads")]
+        public void CleanFileInput()
+        {
+            driver.Url = uploadPage;
+            IWebElement element = driver.FindElement(By.Id("upload"));
+            element.SendKeys(testFile.FullName);
+            element.Clear();
+            Assert.AreEqual(string.Empty, element.GetAttribute("value"));
+        }
+
+        [Test]
+        [IgnoreBrowser(Browser.Chrome, "Chrome driver does not throw exception.")]
+        [IgnoreBrowser(Browser.Edge, "Edge driver does not throw exception.")]
+        public void ClickFileInput()
+        {
+            driver.Url = uploadPage;
+            IWebElement element = driver.FindElement(By.Id("upload"));
+            Assert.That(() => element.Click(), Throws.InstanceOf<WebDriverException>());
+        }
+
+        [Test]
+        public void UploadingWithHiddenFileInput()
+        {
+            driver.Url = EnvironmentManager.Instance.UrlBuilder.WhereIs("upload_invisible.html");
+            driver.FindElement(By.Id("upload")).SendKeys(testFile.FullName);
+            driver.FindElement(By.Id("go")).Click();
+
+            // Uploading files across a network may take a while, even if they're really small
+            IWebElement label = driver.FindElement(By.Id("upload_label"));
+            driver.SwitchTo().Frame("upload_target");
+
+            IWebElement body = null;
+            WaitFor(() =>
+            {
+                body = driver.FindElement(By.XPath("//body"));
+                return body.Text.Contains(LoremIpsumText);
+            }, "Page source is: " + driver.PageSource);
+            Assert.That(body.Text, Is.EqualTo(LoremIpsumText), "Page source is: " + driver.PageSource);
+
+        }
+
+        //------------------------------------------------------------------
+        // Tests below here are not included in the Java test suite
+        //------------------------------------------------------------------
+        [Test]
         public void ShouldAllowFileUploadingUsingTransparentUploadElement()
         {
-            if (TestUtilities.IsMarionette(driver))
-            {
-                Assert.Ignore("Marionette does not upload with tranparent upload element.");
-            }
-
             driver.Url = transparentUploadPage;
             driver.FindElement(By.Id("upload")).SendKeys(testFile.FullName);
             driver.FindElement(By.Id("go")).Submit();
@@ -67,11 +97,12 @@ namespace OpenQA.Selenium
             driver.SwitchTo().Frame("upload_target");
 
             IWebElement body = null;
-            WaitFor(() => {
+            WaitFor(() =>
+            {
                 body = driver.FindElement(By.XPath("//body"));
-                return LoremIpsumText == body.Text;
+                return body.Text.Contains(LoremIpsumText);
             }, "Page source is: " + driver.PageSource);
-            Assert.IsTrue(LoremIpsumText == body.Text, "Page source is: " + driver.PageSource);
+            Assert.That(body.Text, Is.EqualTo(LoremIpsumText), "Page source is: " + driver.PageSource);
             driver.Url = "about:blank";
         }
 

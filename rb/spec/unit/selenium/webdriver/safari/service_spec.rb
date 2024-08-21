@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,42 +17,103 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
     module Safari
       describe Service do
-        let(:resp) { {'sessionId' => 'foo', 'value' => Remote::Capabilities.safari.as_json} }
-        let(:service) { instance_double(Service, start: true, uri: 'http://example.com') }
-        let(:caps) { Remote::Capabilities.safari }
-        let(:http) { instance_double(Remote::Http::Default, call: resp).as_null_object }
+        describe '#new' do
+          let(:service_path) { "/path/to/#{Service::EXECUTABLE}" }
 
-        before do
-          allow(Remote::Capabilities).to receive(:safari).and_return(caps)
-          allow_any_instance_of(Service).to receive(:start)
-          allow_any_instance_of(Service).to receive(:binary_path)
+          before do
+            allow(Platform).to receive(:assert_executable)
+          end
+
+          it 'does not allow log' do
+            expect {
+              described_class.new(log: 'anywhere')
+            }.to raise_exception(Error::WebDriverError, 'Safari Service does not support setting log output')
+          end
+
+          it 'uses default port and nil path' do
+            service = described_class.new
+
+            expect(service.port).to eq Service::DEFAULT_PORT
+            expect(service.host).to eq Platform.localhost
+            expect(service.executable_path).to be_nil
+          end
+
+          it 'uses provided path and port' do
+            path = 'foo'
+            port = 5678
+
+            service = described_class.new(path: path, port: port)
+
+            expect(service.executable_path).to eq path
+            expect(service.port).to eq port
+            expect(service.host).to eq Platform.localhost
+          end
+
+          it 'does not create args by default' do
+            service = described_class.new
+
+            expect(service.extra_args).to be_empty
+          end
+
+          it 'does not allow log=' do
+            service = described_class.new
+            expect {
+              service.log = 'anywhere'
+            }.to raise_exception(Error::WebDriverError, 'Safari Service does not support setting log output')
+          end
+
+          it 'uses provided args' do
+            service = described_class.new(args: ['--foo', '--bar'])
+
+            expect(service.extra_args).to eq ['--foo', '--bar']
+          end
         end
 
-        it 'does not start driver when receives url' do
-          expect(Service).not_to receive(:new)
-          expect(http).to receive(:server_url=).with(URI.parse('http://example.com:4321'))
+        context 'when initializing driver' do
+          let(:driver) { Safari::Driver }
+          let(:service) do
+            instance_double(described_class, launch: service_manager, executable_path: nil, 'executable_path=': nil,
+                                             class: described_class)
+          end
+          let(:service_manager) { instance_double(ServiceManager, uri: 'http://example.com') }
+          let(:bridge) { instance_double(Remote::Bridge, quit: nil, create_session: {}) }
+          let(:finder) { instance_double(DriverFinder, browser_path?: false, driver_path: '/path/to/driver') }
 
-          Driver.new(http_client: http, url: 'http://example.com:4321')
-        end
+          before do
+            allow(Remote::Bridge).to receive(:new).and_return(bridge)
+            allow(ServiceManager).to receive(:new).and_return(service_manager)
+            allow(bridge).to receive(:browser).and_return(:safari)
+          end
 
-        it 'defaults to desired path and port' do
-          expect(Service).to receive(:new).with(Safari.driver_path, Service::DEFAULT_PORT, {}).and_return(service)
+          it 'is not created when :url is provided' do
+            expect {
+              driver.new(url: 'http://example.com:4321')
+            }.to raise_error(ArgumentError, "Can't initialize Selenium::WebDriver::Safari::Driver with :url")
+          end
 
-          Driver.new(http_client: http)
-        end
+          it 'is created when :url is not provided' do
+            allow(DriverFinder).to receive(:new).and_return(finder)
+            allow(described_class).to receive(:new).and_return(service)
 
-        it 'accepts a driver path & port' do
-          path = '/foo/chromedriver'
-          port = '1234'
-          expect(Service).to receive(:new).with(path, '1234', {}).and_return(service)
+            driver.new
 
-          Driver.new(http_client: http, driver_path: path, port: port)
+            expect(described_class).to have_received(:new).with(no_args)
+          end
+
+          it 'accepts :service without creating a new instance' do
+            allow(DriverFinder).to receive(:new).and_return(finder)
+            allow(described_class).to receive(:new)
+
+            driver.new(service: service)
+
+            expect(described_class).not_to have_received(:new)
+          end
         end
       end
     end # Safari

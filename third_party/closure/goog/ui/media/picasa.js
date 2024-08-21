@@ -56,10 +56,7 @@
  *   picasa.setSelected(true);
  * </pre>
  *
- *
- * @supported IE6, FF2+, Safari. Requires flash to actually work.
- *
- * TODO(user): test on other browsers
+ * Requires flash to actually work.
  */
 
 goog.provide('goog.ui.media.PicasaAlbum');
@@ -152,8 +149,6 @@ goog.ui.media.PicasaAlbum.prototype.createDom = function(c) {
 
   var picasaAlbum =
       /** @type {goog.ui.media.PicasaAlbumModel} */ (control.getDataModel());
-  var authParam =
-      picasaAlbum.getAuthKey() ? ('&authkey=' + picasaAlbum.getAuthKey()) : '';
   var flash = new goog.ui.media.FlashObject(
       picasaAlbum.getPlayer().getTrustedResourceUrl(), control.getDomHelper());
   flash.addFlashVars(picasaAlbum.getPlayer().getVars());
@@ -223,14 +218,14 @@ goog.ui.media.PicasaAlbumModel = function(
   var flashVars = {
     'host': 'picasaweb.google.com',
     'RGB': '0x000000',
-    'feed': 'http://picasaweb.google.com/data/feed/api/user/' + userId +
+    'feed': 'https://picasaweb.google.com/data/feed/api/user/' + userId +
         '/album/' + albumId + '?kind=photo&alt=rss' + authParam
   };
   flashVars[opt_autoplay ? 'autoplay' : 'noautoplay'] = '1';
 
   var flashUrl = goog.html.TrustedResourceUrl.fromConstant(
       goog.string.Const.from(
-          'http://picasaweb.google.com/s/c/bin/slideshow.swf'));
+          'https://picasaweb.google.com/s/c/bin/slideshow.swf'));
   var player = new goog.ui.media.MediaModel.Player(flashUrl, flashVars);
 
   this.setPlayer(player);
@@ -284,7 +279,7 @@ goog.ui.media.PicasaAlbumModel.newInstance = function(
  * @return {string} The URL of the album.
  */
 goog.ui.media.PicasaAlbumModel.buildUrl = function(userId, albumId) {
-  return 'http://picasaweb.google.com/' + userId + '/' + albumId;
+  return 'https://picasaweb.google.com/' + userId + '/' + albumId;
 };
 
 

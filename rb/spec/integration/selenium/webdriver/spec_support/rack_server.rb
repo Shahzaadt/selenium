@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,7 +18,6 @@
 # under the License.
 
 require 'rack'
-require 'socket'
 
 module Selenium
   module WebDriver
@@ -26,29 +25,28 @@ module Selenium
       class RackServer
         START_TIMEOUT = 30
 
-        def initialize(path, port = nil)
+        def initialize(path, port)
           @path = path
           @app  = TestApp.new(path)
 
-          @host = ENV['localhost'] || 'localhost'
-          @port = Integer(port || PortProber.above(8180))
+          @host = ENV.fetch('localhost', 'localhost')
+          @port = port
         end
 
         def start
-          if Platform.jruby?
+          if Platform.jruby? || Platform.windows? || Platform.truffleruby?
             start_threaded
-          elsif Platform.windows?
-            start_windows
           else
             start_forked
           end
 
           return if SocketPoller.new(@host, @port, START_TIMEOUT).connected?
+
           raise "rack server not launched in #{START_TIMEOUT} seconds"
         end
 
         def run
-          handler.run @app, Host: @host, Port: @port, AccessLog: []
+          handler.run @app, Host: @host, Port: @port, AccessLog: [], Logger: WEBrick::Log.new(nil, 0)
         end
 
         def where_is(file)
@@ -70,7 +68,7 @@ module Selenium
 
         def handler
           # can't use Platform here since it's being run as a file on Windows + IE.
-          handlers = if RUBY_PLATFORM =~ /mswin|msys|mingw32/
+          handlers = if RUBY_PLATFORM.match?(/mswin|msys|mingw32/)
                        %w[mongrel webrick]
                      else
                        %w[thin mongrel webrick]
@@ -98,17 +96,6 @@ module Selenium
           sleep 0.5
         end
 
-        def start_windows
-          if %w[ie internet_explorer].include? ENV['WD_SPEC_DRIVER']
-            # For IE, the combination of Windows + FFI + MRI seems to cause a
-            # deadlock with the get() call and the server thread.
-            # Workaround by running this file in a subprocess.
-            @process = ChildProcess.build('ruby', '-r', 'rubygems', __FILE__, @path, @port.to_s).start
-          else
-            start_threaded
-          end
-        end
-
         class TestApp
           BASIC_AUTH_CREDENTIALS = %w[test test].freeze
 
@@ -118,29 +105,42 @@ module Selenium
 
           def call(env)
             case env['PATH_INFO']
-            when '/common/upload'
+            when '/upload'
               req = Rack::Request.new(env)
-              body = req['upload'][:tempfile].read
+              body = case req['upload']
+                     when Array
+                       req.params['upload'].map { |upload| upload[:tempfile].read }.join("\n")
+                     when Hash
+                       req.params['upload'][:tempfile].read
+                     end
 
               [200, {'Content-Type' => 'text/html'}, [body]]
+            when '/sleep'
+              time = Rack::Request.new(env).params['time']
+              sleep Integer(time)
+              [200, {'Content-Type' => 'text/html'}, ["Slept for #{time}"]]
             when '/basicAuth'
-              if authorized?(env)
-                status = 200
-                header = {'Content-Type' => 'text/html'}
-                body = '<h1>authorized</h1>'
-              else
-                status = 401
-                header = {'WWW-Authenticate' => 'Basic realm="basic-auth-test"'}
-                body = 'Login please'
-              end
-
-              [status, header, [body]]
+              authorize(env)
             else
               @static.call env
             end
           end
 
           private
+
+          def authorize(env)
+            if authorized?(env)
+              status = 200
+              header = {'Content-Type' => 'text/html'}
+              body = '<h1>authorized</h1>'
+            else
+              status = 401
+              header = {'WWW-Authenticate' => 'Basic realm="basic-auth-test"'}
+              body = 'Login please'
+            end
+
+            [status, header, [body]]
+          end
 
           def authorized?(env)
             auth = Rack::Auth::Basic::Request.new(env)
@@ -151,7 +151,3 @@ module Selenium
     end # SpecSupport
   end # WebDriver
 end # Selenium
-
-if __FILE__ == $PROGRAM_NAME
-  Selenium::WebDriver::SpecSupport::RackServer.new(ARGV[0], ARGV[1]).run
-end

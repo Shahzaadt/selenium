@@ -1,6 +1,5 @@
 using NUnit.Framework;
 using System.Collections.ObjectModel;
-using OpenQA.Selenium.Internal;
 
 namespace OpenQA.Selenium
 {
@@ -13,7 +12,7 @@ namespace OpenQA.Selenium
             driver.Url = nestedPage;
             IWebElement element = driver.FindElement(By.Name("form2"));
             IWebElement child = element.FindElement(By.XPath("select"));
-            Assert.AreEqual(child.GetAttribute("id"), "2");
+            Assert.AreEqual("2", child.GetAttribute("id"));
         }
 
         [Test]
@@ -41,7 +40,7 @@ namespace OpenQA.Selenium
         {
             driver.Url = nestedPage;
             IWebElement element = driver.FindElement(By.Name("form2"));
-            Assert.Throws<NoSuchElementException>(() => element.FindElement(By.XPath("select/x")));
+            Assert.That(() => element.FindElement(By.XPath("select/x")), Throws.InstanceOf<NoSuchElementException>());
         }
 
         [Test]
@@ -50,9 +49,9 @@ namespace OpenQA.Selenium
             driver.Url = nestedPage;
             IWebElement element = driver.FindElement(By.Name("form2"));
             ReadOnlyCollection<IWebElement> children = element.FindElements(By.XPath("select/option"));
-            Assert.AreEqual(children.Count, 8);
-            Assert.AreEqual(children[0].Text, "One");
-            Assert.AreEqual(children[1].Text, "Two");
+            Assert.AreEqual(8, children.Count);
+            Assert.AreEqual("One", children[0].Text);
+            Assert.AreEqual("Two", children[1].Text);
         }
 
         [Test]
@@ -70,7 +69,7 @@ namespace OpenQA.Selenium
             driver.Url = nestedPage;
             IWebElement element = driver.FindElement(By.Name("form2"));
             IWebElement child = element.FindElement(By.Name("selectomatic"));
-            Assert.AreEqual(child.GetAttribute("id"), "2");
+            Assert.AreEqual("2", child.GetAttribute("id"));
         }
 
         [Test]
@@ -101,15 +100,24 @@ namespace OpenQA.Selenium
             Assert.AreEqual(child.Text, "inside");
         }
 
+        [Test]
+        public void FindElementByIdWhenIdContainsNonAlphanumericCharacters()
+        {
+            driver.Url = nestedPage;
+            IWebElement element = driver.FindElement(By.Id("test_special_chars"));
+            IWebElement childWithSpaces = element.FindElement(By.Id("white space"));
+            Assert.That(childWithSpaces.Text.Contains("space"));
+            IWebElement childWithCssChars = element.FindElement(By.Id("css#.chars"));
+            Assert.That(childWithCssChars.Text, Is.EqualTo("css escapes"));
+        }
 
         [Test]
         public void FindElementByIdWhenNoMatchInContext()
         {
             driver.Url = nestedPage;
             IWebElement element = driver.FindElement(By.Id("test_id_div"));
-            Assert.Throws<NoSuchElementException>(() => element.FindElement(By.Id("test_id_out")));
+            Assert.That(() => element.FindElement(By.Id("test_id_out")), Throws.InstanceOf<NoSuchElementException>());
         }
-
 
         [Test]
         public void FindElementsById()
@@ -120,6 +128,16 @@ namespace OpenQA.Selenium
             Assert.AreEqual(children.Count, 2);
         }
 
+        [Test]
+        public void FindElementsByIdWithNonAlphanumericCharacters()
+        {
+            driver.Url = nestedPage;
+            IWebElement element = driver.FindElement(By.Id("test_special_chars"));
+            ReadOnlyCollection<IWebElement> children = element.FindElements(By.Id("white space"));
+            Assert.That(children.Count, Is.EqualTo(1));
+            ReadOnlyCollection<IWebElement> children2 = element.FindElements(By.Id("css#.chars"));
+            Assert.That(children2.Count, Is.EqualTo(1));
+        }
 
         [Test]
         public void FindElementByLinkText()
@@ -132,7 +150,7 @@ namespace OpenQA.Selenium
 
 
         [Test]
-        public void FindElementsByLinkTest()
+        public void FindElementsByLinkText()
         {
             driver.Url = nestedPage;
             IWebElement element = driver.FindElement(By.Name("div1"));
@@ -143,14 +161,23 @@ namespace OpenQA.Selenium
             Assert.AreEqual(elements[1].GetAttribute("name"), "link2");
         }
 
-
         [Test]
-        public void FindElementsByLinkText()
+        public void ShouldFindChildElementsById()
         {
             driver.Url = nestedPage;
-            IWebElement element = driver.FindElement(By.Name("div1"));
-            ReadOnlyCollection<IWebElement> children = element.FindElements(By.LinkText("hello world"));
-            Assert.AreEqual(children.Count, 2);
+            IWebElement parent = driver.FindElement(By.Id("test_id_div"));
+            IWebElement element = parent.FindElement(By.Id("test_id"));
+            Assert.AreEqual("inside", element.Text);
+        }
+
+        [Test]
+        public void ShouldNotReturnRootElementWhenFindingChildrenById()
+        {
+            driver.Url = nestedPage;
+            IWebElement parent = driver.FindElement(By.Id("test_id"));
+
+            Assert.AreEqual(0, parent.FindElements(By.Id("test_id")).Count);
+            Assert.That(() => parent.FindElement(By.Id("test_id")), Throws.InstanceOf<NoSuchElementException>());
         }
 
         [Test]
@@ -200,15 +227,9 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
         public void ShouldBeAbleToFindAnElementByCssSelector()
         {
             driver.Url = nestedPage;
-            if (!SupportsSelectorApi())
-            {
-                Assert.Ignore("Skipping test: selector API not supported");
-            }
-
             IWebElement parent = driver.FindElement(By.Name("form2"));
 
             IWebElement element = parent.FindElement(By.CssSelector("*[name=\"selectomatic\"]"));
@@ -217,15 +238,20 @@ namespace OpenQA.Selenium
         }
 
         [Test]
-        [Category("Javascript")]
-        public void ShouldBeAbleToFindAnElementsByCssSelector()
+        public void ShouldBeAbleToFindAnElementByCss3Selector()
         {
             driver.Url = nestedPage;
-            if (!SupportsSelectorApi())
-            {
-                Assert.Ignore("Skipping test: selector API not supported");
-            }
+            IWebElement parent = driver.FindElement(By.Name("form2"));
 
+            IWebElement element = parent.FindElement(By.CssSelector("*[name^=\"selecto\"]"));
+
+            Assert.AreEqual("2", element.GetAttribute("id"));
+        }
+
+        [Test]
+        public void ShouldBeAbleToFindElementsByCssSelector()
+        {
+            driver.Url = nestedPage;
             IWebElement parent = driver.FindElement(By.Name("form2"));
 
             ReadOnlyCollection<IWebElement> elements = parent.FindElements(By.CssSelector("*[name=\"selectomatic\"]"));
@@ -233,12 +259,103 @@ namespace OpenQA.Selenium
             Assert.AreEqual(2, elements.Count);
         }
 
-        private bool SupportsSelectorApi()
+        [Test]
+        public void ShouldBeAbleToFindChildrenOfANode()
         {
-            IJavaScriptExecutor javascriptDriver = driver as IJavaScriptExecutor;
-            IFindsByCssSelector cssSelectorDriver = driver as IFindsByCssSelector;
+            driver.Url = selectableItemsPage;
+            ReadOnlyCollection<IWebElement> elements = driver.FindElements(By.XPath("/html/head"));
+            IWebElement head = elements[0];
+            ReadOnlyCollection<IWebElement> importedScripts = head.FindElements(By.TagName("script"));
+            Assert.That(importedScripts.Count, Is.EqualTo(3));
+        }
 
-            return (cssSelectorDriver != null) && (javascriptDriver != null);
+        [Test]
+        public void ReturnAnEmptyListWhenThereAreNoChildrenOfANode()
+        {
+            driver.Url = xhtmlTestPage;
+            IWebElement table = driver.FindElement(By.Id("table"));
+            ReadOnlyCollection<IWebElement> rows = table.FindElements(By.TagName("tr"));
+
+            Assert.That(rows.Count, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void ShouldFindGrandChildren()
+        {
+            driver.Url = formsPage;
+            IWebElement form = driver.FindElement(By.Id("nested_form"));
+            form.FindElement(By.Name("x"));
+        }
+
+        [Test]
+        public void ShouldNotFindElementOutSideTree()
+        {
+            driver.Url = formsPage;
+            IWebElement element = driver.FindElement(By.Name("login"));
+            Assert.That(() => element.FindElement(By.Name("x")), Throws.InstanceOf<NoSuchElementException>());
+        }
+
+        [Test]
+        public void FindingByTagNameShouldNotIncludeParentElementIfSameTagType()
+        {
+            driver.Url = xhtmlTestPage;
+            IWebElement parent = driver.FindElement(By.Id("my_span"));
+
+            Assert.AreEqual(2, parent.FindElements(By.TagName("div")).Count);
+            Assert.AreEqual(2, parent.FindElements(By.TagName("span")).Count);
+        }
+
+        [Test]
+        public void FindingByCssShouldNotIncludeParentElementIfSameTagType()
+        {
+            driver.Url = xhtmlTestPage;
+            IWebElement parent = driver.FindElement(By.CssSelector("div#parent"));
+            IWebElement child = parent.FindElement(By.CssSelector("div"));
+
+            Assert.AreEqual("child", child.GetAttribute("id"));
+        }
+
+        [Test]
+        public void FindMultipleElements()
+        {
+            driver.Url = simpleTestPage;
+            IWebElement elem = driver.FindElement(By.Id("links"));
+
+            ReadOnlyCollection<IWebElement> elements = elem.FindElements(By.PartialLinkText("link"));
+            Assert.That(elements, Is.Not.Null);
+            Assert.AreEqual(6, elements.Count);
+        }
+
+        [Test]
+        [IgnoreBrowser(Browser.Safari, "Safari does not trim")]
+        public void LinkWithLeadingSpaces()
+        {
+            driver.Url = simpleTestPage;
+            IWebElement elem = driver.FindElement(By.Id("links"));
+
+            IWebElement res = elem.FindElement(By.PartialLinkText("link with leading space"));
+            Assert.AreEqual("link with leading space", res.Text);
+        }
+
+        [Test]
+        [IgnoreBrowser(Browser.Safari, "Safari does not trim")]
+        public void LinkWithTrailingSpace()
+        {
+            driver.Url = simpleTestPage;
+            IWebElement elem = driver.FindElement(By.Id("links"));
+
+            IWebElement res = elem.FindElement(By.PartialLinkText("link with trailing space"));
+            Assert.AreEqual("link with trailing space", res.Text);
+        }
+
+        [Test]
+        public void ElementCanGetLinkByLinkTestIgnoringTrailingWhitespace()
+        {
+            driver.Url = simpleTestPage;
+            IWebElement elem = driver.FindElement(By.Id("links"));
+
+            IWebElement link = elem.FindElement(By.LinkText("link with trailing space"));
+            Assert.AreEqual("linkWithTrailingSpace", link.GetAttribute("id"));
         }
     }
 }

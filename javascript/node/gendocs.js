@@ -89,7 +89,7 @@ function mkdirp(aPath) {
  */
 function installDossier() {
   return new Promise(function(fulfill, reject) {
-    let buildNodeDir = path.join(PROJECT_ROOT, 'build/javascript/node');
+    let buildNodeDir = path.join(PROJECT_ROOT);
     let jar = path.join(buildNodeDir, 'node_modules/js-dossier/dossier.jar');
     fs.stat(jar, function(err) {
       if (!err) return fulfill(jar);
@@ -116,6 +116,7 @@ function getModules() {
     path.join(__dirname, 'selenium-webdriver/lib/safari'),
     path.join(__dirname, 'selenium-webdriver/lib/test'),
     path.join(__dirname, 'selenium-webdriver/lib/tools'),
+    path.join(__dirname, 'selenium-webdriver/devtools/generator'),
     path.join(__dirname, 'selenium-webdriver/node_modules'),
     path.join(__dirname, 'selenium-webdriver/test')
   ];
@@ -197,7 +198,7 @@ function buildConfig(modules) {
     ],
     externs: [path.join(externs, 'global.js')],
     externModules: [
-        path.join(externs, 'adm-zip.js'),
+        path.join(externs, 'jszip.js'),
         path.join(externs, 'mocha.js'),
         path.join(externs, 'rimraf.js'),
         path.join(externs, 'tmp.js'),
@@ -205,7 +206,7 @@ function buildConfig(modules) {
         path.join(externs, 'xml2js.js')
     ],
     sourceUrlTemplate:
-        'https://github.com/SeleniumHQ/selenium/tree/master/'
+        'https://github.com/SeleniumHQ/selenium/tree/trunk/'
             + 'javascript/node/selenium-webdriver/%path%#L%line%',
     strict: false
   }

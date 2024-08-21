@@ -14,39 +14,41 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
+from ..utils import keys_to_typing
+from .interaction import KEY
 from .interaction import Interaction
 from .key_input import KeyInput
-from ..utils import keys_to_typing
+from .pointer_input import PointerInput
+from .wheel_input import WheelInput
 
 
 class KeyActions(Interaction):
-
-    def __init__(self, source=None):
-        if source is None:
-            source = KeyInput()
+    def __init__(self, source: KeyInput | PointerInput | WheelInput | None = None) -> None:
+        if not source:
+            source = KeyInput(KEY)
         self.source = source
-        super(KeyActions, self).__init__(source)
+        super().__init__(source)
 
-    def key_down(self, letter, element=None):
-        return self._key_action("create_key_down",
-                                letter, element)
+    def key_down(self, letter: str) -> KeyActions:
+        return self._key_action("create_key_down", letter)
 
-    def key_up(self, letter, element=None):
-        return self._key_action("create_key_up",
-                                letter, element)
+    def key_up(self, letter: str) -> KeyActions:
+        return self._key_action("create_key_up", letter)
 
-    def pause(self, duration=0):
+    def pause(self, duration: int = 0) -> KeyActions:
         return self._key_action("create_pause", duration)
 
-    def send_keys(self, text, element=None):
+    def send_keys(self, text: str | list) -> KeyActions:
         if not isinstance(text, list):
             text = keys_to_typing(text)
         for letter in text:
-            self.key_down(letter, element)
-            self.key_up(letter, element)
+            self.key_down(letter)
+            self.key_up(letter)
         return self
 
-    def _key_action(self, action, letter, element=None):
+    def _key_action(self, action: str, letter) -> KeyActions:
         meth = getattr(self.source, action)
         meth(letter)
         return self

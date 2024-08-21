@@ -16,8 +16,11 @@
 // limitations under the License.
 // </copyright>
 
-using System;
+using OpenQA.Selenium.Chromium;
 using OpenQA.Selenium.Remote;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace OpenQA.Selenium.Chrome
 {
@@ -54,12 +57,18 @@ namespace OpenQA.Selenium.Chrome
     /// }
     /// </code>
     /// </example>
-    public class ChromeDriver : RemoteWebDriver
+    public class ChromeDriver : ChromiumDriver
     {
-        /// <summary>
-        /// Accept untrusted SSL Certificates
-        /// </summary>
-        public static readonly bool AcceptUntrustedCertificates = true;
+        private static Dictionary<string, CommandInfo> chromeCustomCommands = new Dictionary<string, CommandInfo>()
+        {
+            { ExecuteCdp, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/goog/cdp/execute") },
+            { GetCastSinksCommand, new HttpCommandInfo(HttpCommandInfo.GetCommand, "/session/{sessionId}/goog/cast/get_sinks") },
+            { SelectCastSinkCommand, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/goog/cast/set_sink_to_use") },
+            { StartCastTabMirroringCommand, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/goog/cast/start_tab_mirroring") },
+            { StartCastDesktopMirroringCommand, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/goog/cast/start_desktop_mirroring") },
+            { GetCastIssueMessageCommand, new HttpCommandInfo(HttpCommandInfo.GetCommand, "/session/{sessionId}/goog/cast/get_issue_message") },
+            { StopCastingCommand, new HttpCommandInfo(HttpCommandInfo.PostCommand, "/session/{sessionId}/goog/cast/stop_casting") }
+        };
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ChromeDriver"/> class.
@@ -138,34 +147,41 @@ namespace OpenQA.Selenium.Chrome
         /// <param name="options">The <see cref="ChromeOptions"/> to be used with the Chrome driver.</param>
         /// <param name="commandTimeout">The maximum amount of time to wait for each command.</param>
         public ChromeDriver(ChromeDriverService service, ChromeOptions options, TimeSpan commandTimeout)
-            : base(new DriverServiceCommandExecutor(service, commandTimeout), ConvertOptionsToCapabilities(options))
+            : base(service, options, commandTimeout)
         {
+            this.AddCustomChromeCommands();
         }
 
         /// <summary>
-        /// Gets or sets the <see cref="IFileDetector"/> responsible for detecting
-        /// sequences of keystrokes representing file paths and names.
+        /// Gets a read-only dictionary of the custom WebDriver commands defined for ChromeDriver.
+        /// The keys of the dictionary are the names assigned to the command; the values are the
+        /// <see cref="CommandInfo"/> objects describing the command behavior.
         /// </summary>
-        /// <remarks>The Chrome driver does not allow a file detector to be set,
-        /// as the server component of the Chrome driver (ChromeDriver.exe) only
-        /// allows uploads from the local computer environment. Attempting to set
-        /// this property has no effect, but does not throw an exception. If you
-        /// are attempting to run the Chrome driver remotely, use <see cref="RemoteWebDriver"/>
-        /// in conjunction with a standalone WebDriver server.</remarks>
-        public override IFileDetector FileDetector
+        public static IReadOnlyDictionary<string, CommandInfo> CustomCommandDefinitions
         {
-            get { return base.FileDetector; }
-            set { }
+            get
+            {
+                Dictionary<string, CommandInfo> customCommands = new Dictionary<string, CommandInfo>();
+                foreach (KeyValuePair<string, CommandInfo> entry in ChromiumCustomCommands)
+                {
+                    customCommands[entry.Key] = entry.Value;
+                }
+
+                foreach (KeyValuePair<string, CommandInfo> entry in chromeCustomCommands)
+                {
+                    customCommands[entry.Key] = entry.Value;
+                }
+
+                return new ReadOnlyDictionary<string, CommandInfo>(customCommands);
+            }
         }
 
-        private static ICapabilities ConvertOptionsToCapabilities(ChromeOptions options)
+        private void AddCustomChromeCommands()
         {
-            if (options == null)
+            foreach (KeyValuePair<string, CommandInfo> entry in CustomCommandDefinitions)
             {
-                throw new ArgumentNullException("options", "options must not be null");
+                this.RegisterInternalDriverCommand(entry.Key, entry.Value);
             }
-
-            return options.ToCapabilities();
         }
     }
 }
